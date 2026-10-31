@@ -547,7 +547,8 @@ function renderMonthly(m,ai,vars){
 
 function buildOutput(m,d,wk,md,wi,vars,notice){
   let txt=fillTpl(TPL.title,vars);
-  if(wk.h)txt+=` (${wk.h})`;
+  /* Bug5 수정: 제목 형식에 {절기}가 이미 포함된 경우 중복 추가 방지 */
+  if(wk.h&&!TPL.title.includes('{절기}'))txt+=` (${wk.h})`;
   txt+='\n\n';
   TPL.fields.filter(f=>f.on).forEach(f=>{txt+=`${f.label} : ${fillTpl(f.var,vars)}\n`;});
   if(notice)txt+=`\n✔️ ${notice}\n`;
@@ -711,11 +712,11 @@ function handleHwpFile(e){const f=e.target.files[0];if(f)readHwpFile(f);e.target
 
 function readHwpFile(file){
   const r=new FileReader();
-  r.onload=ev=>processHwp(ev.target.result,file.name);
+  r.onload=async ev=>{ await processHwp(ev.target.result,file.name); };
   r.readAsArrayBuffer(file);
 }
 
-function processHwp(buf,fname){
+async function processHwp(buf,fname){
   const status=document.getElementById('hwpStatus');
   const rawEl=document.getElementById('hwpRaw');
   const preview=document.getElementById('hwpPreview');
@@ -729,7 +730,7 @@ function processHwp(buf,fname){
       status.className='parse-result err';status.textContent='❌ HWP 파일을 인식할 수 없습니다 (OLE 서명 불일치)';return;
     }
 
-    const texts=extractHwpTokens(bytes);
+    const texts=await extractHwpTokens(bytes);
     if(!texts.length){
       status.className='parse-result err';status.textContent='❌ 텍스트를 추출하지 못했습니다.';return;
     }
@@ -752,78 +753,90 @@ function processHwp(buf,fname){
   }
 }
 
-function extractHwpTokens(bytes){
-  const FAT_OFF=76,DIFAT_OFF=76+4*109;
+async function extractHwpTokens(bytes){
+  const FAT_OFF=76;
   const sectorSize=1<<(bytes[30]|(bytes[31]<<8));
   function readSector(n){const off=(n+1)*sectorSize;return bytes.slice(off,off+sectorSize);}
 
+  function readUint32LE(arr,off){
+    return (arr[off]|(arr[off+1]<<8)|(arr[off+2]<<16)|((arr[off+3]&0x7F)<<24))>>>0;
+  }
+
   function readFAT(){
-    const count=bytes[44]|(bytes[45]<<8)|(bytes[46]<<16)|(bytes[47]<<24);
+    const count=readUint32LE(bytes,44);
     const fat=[];
     for(let i=0;i<Math.min(count,109);i++){
-      const s=bytes[FAT_OFF+i*4]|(bytes[FAT_OFF+i*4+1]<<8)|(bytes[FAT_OFF+i*4+2]<<16)|(bytes[FAT_OFF+i*4+3]<<24);
-      if(s<0||s>0xFFFFFFFA)continue;
+      const s=readUint32LE(bytes,FAT_OFF+i*4);
+      if(s>=0xFFFFFFFB)continue;
       const sec=readSector(s);
-      for(let j=0;j<sectorSize/4;j++)fat.push(sec[j*4]|(sec[j*4+1]<<8)|(sec[j*4+2]<<16)|(sec[j*4+3]<<24));
+      for(let j=0;j<sectorSize/4;j++)fat.push(readUint32LE(sec,j*4));
     }
     return fat;
   }
 
   function chainSectors(start,fat){
     const chain=[];let cur=start;
-    while(cur>=0&&cur<0xFFFFFFFA&&chain.length<4096){chain.push(cur);cur=fat[cur]||0xFFFFFFFE;}
+    while(cur<0xFFFFFFFB&&chain.length<4096){chain.push(cur);cur=fat[cur]??0xFFFFFFFE;}
     return chain;
   }
 
-  function findDirEntry(name,rootSec,fat){
+  /* OLE 디렉토리 전체 항목 목록 반환 (이름→{start,size,childId} 맵) */
+  function readAllDirEntries(rootSec,fat){
+    const map={};
     const chain=chainSectors(rootSec,fat);
     for(const s of chain){
       const sec=readSector(s);
-      for(let i=0;i<4;i++){
+      for(let i=0;i<sectorSize/128;i++){
         const base=i*128;
         const nlen=sec[base+64]|(sec[base+65]<<8);
         if(nlen<2||nlen>64)continue;
         let ename='';
         for(let j=0;j<(nlen-2)/2;j++)ename+=String.fromCharCode(sec[base+j*2]|(sec[base+j*2+1]<<8));
-        if(ename===name){
-          const start=sec[base+116]|(sec[base+117]<<8)|(sec[base+118]<<16)|(sec[base+119]<<24);
-          const size=sec[base+120]|(sec[base+121]<<8)|(sec[base+122]<<16)|(sec[base+123]<<24);
-          return{start,size};
-        }
+        if(!ename)continue;
+        const start=readUint32LE(sec,base+116);
+        const size=readUint32LE(sec,base+120);
+        const childId=readUint32LE(sec,base+76);  // sibling/child IDs for tree traversal (unused here)
+        map[ename]={start,size,childId};
       }
     }
-    return null;
+    return map;
   }
 
   try{
     const fat=readFAT();
-    const rootStart=bytes[48]|(bytes[49]<<8)|(bytes[52]<<16)|(bytes[53]<<24)||0;
+    /* Bug2 수정: bytes[48~51] 4바이트 올바르게 읽기 */
+    const rootStart=readUint32LE(bytes,48);
 
-    const bodyEntry=findDirEntry('BodyText',rootStart,fat)||findDirEntry('Section0',rootStart,fat);
+    /* Bug3 수정: 디렉토리 전체를 한 번에 읽어 BodyText와 Section0 모두 탐색 */
+    const dirMap=readAllDirEntries(rootStart,fat);
+
+    /* Section0 우선 (BodyText 하위든 Root 하위든 이름만 맞으면 OK) */
+    let entry=dirMap['Section0']||dirMap['BodyText']||null;
     let rawBytes=null;
 
-    if(bodyEntry){
-      const sec0Entry=findDirEntry('Section0',rootStart,fat);
-      const entry=sec0Entry||bodyEntry;
+    if(entry&&entry.start<0xFFFFFFFB){
       const chain=chainSectors(entry.start,fat);
       const parts=chain.map(s=>readSector(s));
       const total=parts.reduce((a,b)=>a+b.length,0);
       const merged=new Uint8Array(total);
-      let off=0;parts.forEach(p=>{merged.set(p,off);off+=p.length;});
-      rawBytes=merged.slice(0,entry.size);
+      let off=0;for(const p of parts){merged.set(p,off);off+=p.length;}
+      rawBytes=merged.slice(0,Math.min(entry.size,merged.length));
     }
 
     if(!rawBytes){rawBytes=bytes;}
 
+    /* Bug1 수정: async 함수 내에서 await 정상 사용 */
     let decompressed;
     try{
       const ds=new DecompressionStream('deflate-raw');
-      const writer=ds.writable.getWriter();const reader=ds.readable.getReader();
+      const writer=ds.writable.getWriter();
+      const reader=ds.readable.getReader();
       writer.write(rawBytes);writer.close();
       const chunks=[];
       while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);}
-      decompressed=new Uint8Array(chunks.reduce((a,b)=>a+b.length,0));
-      let p=0;chunks.forEach(c=>{decompressed.set(c,p);p+=c.length;});
+      const total=chunks.reduce((a,b)=>a+b.length,0);
+      decompressed=new Uint8Array(total);
+      let p=0;for(const c of chunks){decompressed.set(c,p);p+=c.length;}
     }catch{decompressed=rawBytes;}
 
     return extractKorean(decompressed);
