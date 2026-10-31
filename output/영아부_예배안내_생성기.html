@@ -435,14 +435,27 @@ const DEFAULT_TPL={
     {key:"3부",      label:"3부",        var:"{3부}",       on:true},
   ],
   monthly_title:"📢{월}월 월간 3부 순서 (예정)",
-  monthly_row:"{일}일 {주차} ({기도}) : {3부}",
+  monthly_row:"{일}일 {주차}주차 ({기도}_{교사회기도}) : {3부}",
 };
 
 let S=loadS(), TPL=loadTpl(), editMonth=1, parsedHwp=null;
 
 function loadS(){try{const v=localStorage.getItem('yab26s');if(v)return JSON.parse(v);}catch{}return JSON.parse(JSON.stringify(DEFAULT_S));}
 function saveS(){try{localStorage.setItem('yab26s',JSON.stringify(S));}catch{}}
-function loadTpl(){try{const v=localStorage.getItem('yab26tpl');if(v)return JSON.parse(v);}catch{}return JSON.parse(JSON.stringify(DEFAULT_TPL));}
+function loadTpl(){
+  try{
+    const v=localStorage.getItem('yab26tpl');
+    if(v){
+      const t=JSON.parse(v);
+      /* 포맷 마이그레이션: 교사회기도 변수 누락된 구버전 처리 */
+      if(t.monthly_row&&!t.monthly_row.includes('{교사회기도}')){
+        t.monthly_row=DEFAULT_TPL.monthly_row;
+      }
+      return t;
+    }
+  }catch{}
+  return JSON.parse(JSON.stringify(DEFAULT_TPL));
+}
 function saveTpl(){
   TPL.title=document.getElementById('tpl_title')?.value||TPL.title;
   TPL.monthly_title=document.getElementById('tpl_monthly_title')?.value||TPL.monthly_title;
