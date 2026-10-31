@@ -524,8 +524,12 @@ function renderGuide(val){
   });
 
   const nb=document.getElementById('nb');
-  if(notice){document.getElementById('nbb').textContent=notice;nb.style.display='block';}
-  else{nb.style.display='none';}
+  if(notice){
+    const nlines=notice.split('\n').map(l=>l.trim()).filter(l=>l);
+    const formatted=nlines.length===1?`✔️ ${nlines[0]}`:nlines.map(l=>`✔️ ${l}`).join('\n');
+    document.getElementById('nbb').textContent=formatted;
+    nb.style.display='block';
+  } else{nb.style.display='none';}
 
   renderMonthly(m,wi,vars);
   buildOutput(m,d,wk,md,wi,vars,notice);
@@ -551,7 +555,14 @@ function buildOutput(m,d,wk,md,wi,vars,notice){
   if(wk.h&&!TPL.title.includes('{절기}'))txt+=` (${wk.h})`;
   txt+='\n\n';
   TPL.fields.filter(f=>f.on).forEach(f=>{txt+=`${f.label} : ${fillTpl(f.var,vars)}\n`;});
-  if(notice)txt+=`\n✔️ ${notice}\n`;
+  if(notice){
+    const lines=notice.split('\n').map(l=>l.trim()).filter(l=>l);
+    if(lines.length===1){
+      txt+=`\n✔️ ${lines[0]}\n`;
+    } else {
+      txt+='\n'+lines.map(l=>`✔️ ${l}`).join('\n')+'\n';
+    }
+  }
   txt+=`\n${fillTpl(TPL.monthly_title,{월:m})}\n`;
   md.w.forEach((w,i)=>{
     const rv={...vars,일:w.d,기도:w.p,교사회기도:w.tp,'3부':w.e,주차:SUP[i]||i+1+'주'};
