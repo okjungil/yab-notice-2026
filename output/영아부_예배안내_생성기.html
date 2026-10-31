@@ -136,6 +136,18 @@ textarea{resize:vertical;min-height:72px}
 .hbox{background:var(--ac2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--ac3);line-height:1.65}
 .hbox strong{display:block;margin-bottom:2px}
 
+/* history tab */
+.hist-list{display:flex;flex-direction:column;gap:10px;padding:18px}
+.hist-card{background:var(--sf);border-radius:var(--rlg);box-shadow:0 0 0 1px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.04);overflow:hidden}
+.hist-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sf2);border-bottom:1px solid var(--bd);gap:8px;flex-wrap:wrap}
+.hist-date{font-size:13px;font-weight:600;color:var(--t1)}
+.hist-saved{font-size:11px;color:var(--t3)}
+.hist-actions{display:flex;gap:5px}
+.hist-body{padding:13px 14px;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--t2);font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;user-select:all;max-height:320px;overflow-y:auto}
+.hist-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:64px 24px;text-align:center;color:var(--t3)}
+.hist-toolbar{padding:12px 18px;background:var(--sf);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.hist-toolbar span{font-size:13px;color:var(--t2)}
+
 /* toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--t1);color:#fff;padding:9px 16px;border-radius:var(--rlg);font-size:13px;font-weight:500;opacity:0;transition:opacity 200ms;z-index:200;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
@@ -169,6 +181,7 @@ textarea{resize:vertical;min-height:72px}
   <button class="tab on" onclick="switchTab('guide',this)">📋 예배 안내 생성</button>
   <button class="tab" onclick="switchTab('edit',this)">✏️ 일정 편집</button>
   <button class="tab" onclick="switchTab('notice',this)">📝 공지 양식 편집</button>
+  <button class="tab" onclick="switchTab('history',this)">🗂️ 저장 이력</button>
 </nav>
 
 <!-- ═══ 탭 1: 예배 안내 생성 ═══ -->
@@ -230,7 +243,10 @@ textarea{resize:vertical;min-height:72px}
       <div class="card">
         <div class="oh">
           <span>카카오톡 복사용</span>
-          <button class="btn btn-p btn-s" id="copyBtn" onclick="copyText()">복사</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-g btn-s" id="saveBtn" onclick="saveHistory()">💾 저장</button>
+            <button class="btn btn-p btn-s" id="copyBtn" onclick="copyText()">복사</button>
+          </div>
         </div>
         <div class="ob" id="otext"></div>
       </div>
@@ -301,6 +317,20 @@ textarea{resize:vertical;min-height:72px}
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ═══ 탭 4: 저장 이력 ═══ -->
+<div id="tab-history" style="display:none;flex-direction:column">
+  <div class="hist-toolbar">
+    <span id="histCount">저장된 안내문이 없습니다.</span>
+    <button class="btn btn-d btn-s" onclick="clearAllHistory()">전체 삭제</button>
+  </div>
+  <div class="hist-list" id="histList">
+    <div class="hist-empty" id="histEmpty">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <p>아직 저장된 안내문이 없습니다.<br>안내문을 생성하고 💾 저장 버튼을 누르세요.</p>
+    </div>
   </div>
 </div>
 
@@ -476,7 +506,7 @@ function parseHJ(hj){
 
 /* ── 탭 전환 ── */
 function switchTab(name,el){
-  ['guide','edit','notice'].forEach(n=>{
+  ['guide','edit','notice','history'].forEach(n=>{
     const t=document.getElementById('tab-'+n);
     if(t)t.style.display=n===name?'flex':'none';
   });
@@ -484,6 +514,7 @@ function switchTab(name,el){
   el.classList.add('on');el.setAttribute('aria-selected','true');
   if(name==='edit')renderEdit(editMonth);
   if(name==='notice')renderNoticeTpl();
+  if(name==='history')renderHistory();
 }
 
 /* ── 날짜 셀렉트 구성 ── */
@@ -590,6 +621,93 @@ async function copyText(){
   try{await navigator.clipboard.writeText(text);}
   catch{const ta=Object.assign(document.createElement('textarea'),{value:text,style:'position:fixed;opacity:0'});document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}
   btn.textContent='완료 ✓';setTimeout(()=>{btn.textContent='복사';},2000);
+}
+
+/* ── 이력 저장/조회 ── */
+const HIST_KEY='yab26hist';
+const HIST_MAX=52;
+
+function loadHistory(){
+  try{const v=localStorage.getItem(HIST_KEY);if(v)return JSON.parse(v);}catch{}
+  return [];
+}
+function persistHistory(arr){
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
+}
+
+function saveHistory(){
+  const text=document.getElementById('otext').textContent.trim();
+  if(!text){showToast('먼저 안내문을 생성하세요.');return;}
+  const dateVal=document.getElementById('dateSelect').value;
+  if(!dateVal)return;
+  const[ms,ds]=dateVal.split('-');
+  const key=`2026-${ms.padStart(2,'0')}-${ds.padStart(2,'0')}`;
+  const label=`2026년 ${ms}월 ${ds}일`;
+  const arr=loadHistory();
+  const existing=arr.findIndex(h=>h.key===key);
+  const entry={key,label,text,savedAt:new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})};
+  if(existing>=0){arr[existing]=entry;}
+  else{arr.unshift(entry);if(arr.length>HIST_MAX)arr.pop();}
+  persistHistory(arr);
+  const btn=document.getElementById('saveBtn');
+  btn.textContent='저장됨 ✓';setTimeout(()=>{btn.textContent='💾 저장';},2000);
+  showToast(`${label} 안내문이 저장되었습니다.`);
+}
+
+function renderHistory(){
+  const arr=loadHistory();
+  const list=document.getElementById('histList');
+  const empty=document.getElementById('histEmpty');
+  const count=document.getElementById('histCount');
+  list.querySelectorAll('.hist-card').forEach(el=>el.remove());
+  if(arr.length===0){
+    empty.style.display='flex';
+    count.textContent='저장된 안내문이 없습니다.';
+    return;
+  }
+  empty.style.display='none';
+  count.textContent=`저장된 안내문 ${arr.length}개`;
+  arr.forEach((h,i)=>{
+    const card=document.createElement('div');
+    card.className='hist-card';
+    card.innerHTML=`
+      <div class="hist-head">
+        <div>
+          <div class="hist-date">${h.label}</div>
+          <div class="hist-saved">저장: ${h.savedAt}</div>
+        </div>
+        <div class="hist-actions">
+          <button class="btn btn-g btn-s" onclick="copyHistItem(${i})">복사</button>
+          <button class="btn btn-d btn-s" onclick="deleteHistItem('${h.key}')">삭제</button>
+        </div>
+      </div>
+      <div class="hist-body">${escHtml(h.text)}</div>`;
+    list.appendChild(card);
+  });
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function copyHistItem(i){
+  const arr=loadHistory();
+  if(!arr[i])return;
+  try{await navigator.clipboard.writeText(arr[i].text);}
+  catch{const ta=Object.assign(document.createElement('textarea'),{value:arr[i].text,style:'position:fixed;opacity:0'});document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}
+  showToast(`${arr[i].label} 안내문을 복사했습니다.`);
+}
+
+function deleteHistItem(key){
+  if(!confirm('이 항목을 삭제하시겠습니까?'))return;
+  const arr=loadHistory().filter(h=>h.key!==key);
+  persistHistory(arr);
+  renderHistory();
+}
+
+function clearAllHistory(){
+  if(!confirm('저장된 안내문을 모두 삭제하시겠습니까?'))return;
+  persistHistory([]);
+  renderHistory();
+  showToast('전체 삭제 완료');
 }
 
 function resetGuide(){
