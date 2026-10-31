@@ -738,7 +738,7 @@ async function processHwp(buf,fname){
     const parsed=parseHwpSchedule(texts);
     if(!parsed||Object.keys(parsed).length<3){
       status.className='parse-result err';
-      status.textContent='⚠️ 일정 구조를 인식하지 못했습니다. 추출된 텍스트를 확인하고 수동으로 편집하세요.';
+      status.textContent='⚠️ 일정 구조를 인식하지 못했습니다. 아래 추출된 토큰을 확인하고 일정 편집 탭에서 수동으로 입력하세요.';
       rawEl.value=texts.join('\n');preview.style.display='block';return;
     }
 
@@ -747,7 +747,15 @@ async function processHwp(buf,fname){
     const weeks=Object.values(parsed).reduce((s,m)=>s+m.w.length,0);
     status.className='parse-result ok';
     status.textContent=`✅ 파싱 성공: ${fname} → ${months}개월 ${weeks}주차 데이터 추출`;
-    rawEl.value=texts.join('\n');preview.style.display='block';applyBtn.style.display='inline-flex';
+    /* 파싱된 구조를 사람이 읽기 쉽게 미리보기 */
+    const preview_lines=[];
+    for(const[mo,md]of Object.entries(parsed)){
+      preview_lines.push(`▶ ${mo}월  [${md.hj}]`);
+      for(const w of md.w){
+        preview_lines.push(`  ${w.d}일${w.h?' ('+w.h+')':''} | ${w.l} | ${w.e} | 기도:${w.p}${w.tp?' / '+w.tp:''}`);
+      }
+    }
+    rawEl.value=preview_lines.join('\n');preview.style.display='block';applyBtn.style.display='inline-flex';
   }catch(ex){
     status.className='parse-result err';status.textContent='❌ 파싱 오류: '+ex.message;
   }
@@ -825,7 +833,7 @@ async function extractHwpTokens(bytes){
 
     if(!rawBytes){rawBytes=bytes;}
 
-    /* Bug1 수정: async 함수 내에서 await 정상 사용 */
+    /* HWP 레코드 기반 정밀 파싱: tag_id=67(PARA_TEXT) 추출 */
     let decompressed;
     try{
       const ds=new DecompressionStream('deflate-raw');
@@ -839,90 +847,341 @@ async function extractHwpTokens(bytes){
       let p=0;for(const c of chunks){decompressed.set(c,p);p+=c.length;}
     }catch{decompressed=rawBytes;}
 
-    return extractKorean(decompressed);
+    return extractHwpParaTexts(decompressed);
   }catch{
-    return extractKorean(bytes);
+    return [];  /* 파싱 실패 시 빈 배열 → processHwp에서 오류 처리 */
   }
 }
 
-function extractKorean(bytes){
-  const results=[];
+/* ── HWP 본문 압축 해제 후 HWPTAG_PARA_TEXT(tag_id=67) 레코드 추출 ── */
+function extractHwpParaTexts(decompressed){
+  /* HWP 레코드 구조: 4바이트 헤더 [tag_id:10 | level:10 | size:12]
+     size==0xFFF 이면 다음 4바이트가 실제 크기 */
+  const body=decompressed;
+  const u32=new DataView(body.buffer||body);
+  const tokens=[];
   let i=0;
-  while(i+1<bytes.length){
-    const chunk=[];let j=i;
-    while(j+1<bytes.length){
-      const v=bytes[j]|(bytes[j+1]<<8);
-      if((v>=0xAC00&&v<=0xD7A3)||(v>=0x0020&&v<=0x007E)||(v>=0x3130&&v<=0x318F)||(v>=0xFF01&&v<=0xFF5E)){
-        chunk.push(v);j+=2;
-      }else break;
+  while(i+4<=body.length){
+    const hdr=u32.getUint32(i,true);
+    const tagId=hdr&0x3FF;
+    let size=(hdr>>>20)&0xFFF;
+    i+=4;
+    if(size===0xFFF){if(i+4>body.length)break;size=u32.getUint32(i,true);i+=4;}
+    const data=body.slice(i,i+size);
+    i+=size;
+    if(tagId===67&&size>=2){  /* HWPTAG_PARA_TEXT */
+      const txt=new TextDecoder('utf-16-le',{fatal:false}).decode(data)
+        /* 줄바꿈은 공백으로, 나머지 제어문자 제거 */
+        .replace(/[\r\n\t]+/g,' ')
+        .replace(/[\u0001-\u001F\uFFFD]/g,'').trim();
+      if(txt.length>0)tokens.push(txt);
     }
-    if(chunk.length>=2){
-      const arr=new Uint8Array(chunk.flatMap(v=>[v&0xFF,(v>>8)&0xFF]));
-      const s=new TextDecoder('utf-16-le',{fatal:false}).decode(arr).trim();
-      if(s.length>=2&&/[가-힣]/.test(s)){results.push(s);i=j;}else{i+=2;}
-    }else{i+=2;}
   }
-  const seen=new Set();
-  return results.filter(s=>{if(seen.has(s))return false;seen.add(s);return true;});
+  return tokens;
 }
 
-function parseHwpSchedule(tokens){
-  const data={};
-  let i=0;
-  while(i<tokens.length){
-    const t=tokens[i];
-    const m=parseInt(t);
-    if(m>=1&&m<=12&&!data[m]){
-      let hjParts=[];let j=i+1;
-      while(j<tokens.length&&parseInt(tokens[j])!==m+1&&hjParts.length<20){
-        const tk=tokens[j];
-        if(['/',')','('].includes(tk)||tk.includes('조')||tk.includes('파랑')||tk.includes('초록')||tk.includes('노랑')||tk.includes('보라')||tk.includes('주황')){
-          hjParts.push(tk);
-        }
-        j++;
-        if(hjParts.length>0&&hjParts.join('').includes('/')&&hjParts.join('').includes('조'))break;
-      }
-      const hj=hjParts.join(' ').replace(/\s+/g,' ').trim();
+/* ── 절기 합성: 두 토큰으로 쪼개진 절기를 하나로 합침 ── */
+const HOLIDAY_PAIRS={
+  '종려':'종려주일','맥추':'맥추감사','추수':'추수감사','송구':'송구영신',
+  '어린이':'어린이주일','어버이':'어버이주일','전도':'전도축제','부활':'부활주일',
+};
+const HOLIDAY_SINGLE=new Set([
+  '신년','설날','추석','성탄',
+  '맥추감사','추수감사','종려주일','부활주일',
+  '어린이주일','어버이주일','전도축제','송구영신',
+]);
 
-      const weeks=[];let k=i+1;
-      while(k<tokens.length){
-        const day=parseInt(tokens[k]);
-        if(day>=1&&day<=31&&k+2<tokens.length){
-          let holiday='',lesson='',event='',prayer='',tp='',kk=k+1;
-          if(kk<tokens.length&&!/^\d+$/.test(tokens[kk])&&tokens[kk].length<10&&!tokens[kk].includes('과')&&!tokens[kk].includes('설교')&&!tokens[kk].includes('주일')){
-            const ht=tokens[kk];
-            if(['신년','설날','추석','부활','종려','맥추','어린이','어버이','추수','성탄','송구','전도','종려주일','부활주일','맥추감사','어린이주일','어버이주일','추수감사','전도축제'].some(kw=>ht.includes(kw))){
-              holiday=ht;kk++;
-              if(kk<tokens.length&&tokens[kk]==='주일'){holiday+='주일';kk++;}
-              if(kk<tokens.length&&tokens[kk]==='감사'){holiday+='감사';kk++;}
-              if(kk<tokens.length&&tokens[kk]==='영신'){holiday='송구영신';kk++;}
-              if(kk<tokens.length&&tokens[kk]==='축제'){holiday='전도축제';kk++;}
+function mergeHolidayTokens(tokens){
+  const out=[];
+  for(let i=0;i<tokens.length;i++){
+    const t=tokens[i];
+    if(HOLIDAY_PAIRS[t]&&i+1<tokens.length){
+      const next=tokens[i+1];
+      if(['주일','감사','영신','축제'].includes(next)){
+        out.push(t+next);i++;continue;
+      }
+    }
+    out.push(t);
+  }
+  return out;
+}
+
+/* ── 이름 판별: 2~7자 순한글(콤마 허용) ── */
+const PERSON_STOP=['과','설교','주일','절기','학교','행사','활동','기부','생일','암송',
+  '편성','체험','올림픽','배우기','공지','만들기','찬양대회','찬양배우기',
+  '꽃꽂이','야외예배','명절','수료','파티','연계','성극','성경','기념','음악회',
+  '부활절','재능','올림픽'];
+function isPersonName(s){
+  if(!s)return false;
+  const t=s.trim();
+  if(t.length<2||t.length>7)return false;
+  if(/[0-9_]/.test(t))return false;
+  if(PERSON_STOP.some(k=>t.includes(k)))return false;
+  return /^[가-힣,]+$/.test(t);
+}
+
+/* ── 헌금/정리조 색상 목록 ── */
+const HJ_COLORS=['보라','파랑','초록','노랑','주황','빨강'];
+function isHjColor(s){return HJ_COLORS.some(c=>s.startsWith(c));}
+
+/* ── 실제 토큰 순서 기반 스케줄 파서 ──
+   실제 HWP(260426) 토큰 순서:
+   [월] [일] [?절기] [공과|설교] [행사(3부)] [기도] [?교사기도]
+        첫 주차 직후: [헌금색] [(담당)] / [조] [(멤버)]
+   ※ 절기가 없으면: [일] [공과] [행사] [기도] [?교사기도]
+   ※ 공과가 없으면: [일] [절기] [행사] [기도] [?교사기도]
+*/
+function parseHwpSchedule(rawTokens){
+  const tokens=mergeHolidayTokens(rawTokens);
+  const data={};
+
+  /* 월 시작 인덱스 목록 수집: 숫자 1~12 이고 다음 토큰도 숫자 1~31 */
+  const monthStarts=[];
+  for(let i=0;i<tokens.length;i++){
+    const n=parseInt(tokens[i]);
+    if(!(n>=1&&n<=12)||!/^\d{1,2}$/.test(tokens[i].trim()))continue;
+    if(i+1<tokens.length){
+      const nx=parseInt(tokens[i+1]);
+      if(nx>=1&&nx<=31&&/^\d{1,2}$/.test(tokens[i+1].trim())){
+        monthStarts.push({m:n,i});
+      }
+    }
+  }
+
+  for(let mi=0;mi<monthStarts.length;mi++){
+    const{m,i:mStart}=monthStarts[mi];
+    if(data[m])continue;
+    const mEnd=mi+1<monthStarts.length?monthStarts[mi+1].i:tokens.length;
+    const mt=tokens.slice(mStart+1,mEnd);
+
+    /* 헌금/정리조(hj) 수집 */
+    let hjColor='',hjPerson='',hjOrg='',hjOrgMem='';
+    for(let t=0;t<mt.length;t++){
+      const tk=mt[t];
+      if(isHjColor(tk)&&!hjColor){hjColor=tk;continue;}
+      if(hjColor&&!hjPerson&&tk.startsWith('(')&&tk.endsWith(')')){hjPerson=tk.slice(1,-1);continue;}
+      if(tk==='/'&&hjColor)continue;
+      if(hjColor&&hjPerson&&(tk.endsWith('조')||/[A-Z]조/.test(tk))&&!hjOrg){hjOrg=tk;continue;}
+      if(hjOrg&&tk.startsWith('(')&&tk.endsWith(')')){hjOrgMem=tk.slice(1,-1);break;}
+    }
+    const hj=hjColor&&hjPerson&&hjOrg
+      ?`${hjColor} (${hjPerson}) / ${hjOrg}${hjOrgMem?' ('+hjOrgMem+')':''}`
+      :(hjColor||'');
+
+    /* 주차별 파싱 */
+    const weeks=[];
+    let wi=0;
+    while(wi<mt.length){
+      const day=parseInt(mt[wi]);
+      if(!(day>=1&&day<=31&&/^\d{1,2}$/.test(mt[wi].trim()))){wi++;continue;}
+      let k=wi+1;
+      let holiday='',lesson='',event='',prayer='',tp='';
+
+      /* 절기 */
+      if(k<mt.length){
+        const ht=mt[k];
+        if(HOLIDAY_SINGLE.has(ht)||HOLIDAY_SINGLE.has(ht.replace(' ',''))){
+          holiday=ht.replace(' ','');k++;
+        }
+      }
+
+      /* 공과: '과' 포함 or '설교' or '성경학교' or '학교' 포함
+         또는 성경구절 포함 (고후, 삼상, 요 등) */
+      if(k<mt.length){
+        const lt=mt[k];
+        if(lt.includes('과')||lt.includes('설교')||lt.includes('성경학교')||lt.includes('학교')
+           ||/\([가-힣]+\s*\d+:\d+\)/.test(lt)){
+          lesson=lt;k++;
+        }
+      }
+
+      /* 행사(3부): 인명도 아니고 숫자도 아니고 헌금색도 아닌 텍스트
+         최대 2토큰까지 합산 (예: '어버이주일행사' '야외예배') */
+      const isDay=(s)=>{const n=parseInt(s);return n>=1&&n<=31&&/^\d{1,2}$/.test(s.trim());};
+      if(k<mt.length){
+        const et=mt[k];
+        if(!isPersonName(et)&&!isDay(et)&&!isHjColor(et)&&et!=='/'&&!et.startsWith('(')){
+          event=et;k++;
+          /* 두 번째 행사 토큰 (연속된 행사 설명) */
+          if(k<mt.length){
+            const et2=mt[k];
+            if(!isPersonName(et2)&&!isDay(et2)&&!isHjColor(et2)&&et2!=='/'&&!et2.startsWith('(')){
+              event+=' '+et2;k++;
             }
           }
-          if(kk<tokens.length&&(tokens[kk].includes('과')||tokens[kk].includes('설교')||tokens[kk].includes('학교')||tokens[kk].includes('성경'))){lesson=tokens[kk];kk++;}
-          if(kk<tokens.length&&!isPersonName(tokens[kk])&&!parseInt(tokens[kk])){event=tokens[kk];kk++;}
-          if(kk<tokens.length&&isPersonName(tokens[kk])){prayer=tokens[kk];kk++;}
-          if(kk<tokens.length&&isPersonName(tokens[kk])&&!parseInt(tokens[kk])){tp=tokens[kk];kk++;}
-
-          if(lesson||event||prayer)weeks.push({d:day,h:holiday,l:lesson,e:event,p:prayer,tp});
-          k=kk;
-        }else{
-          if(parseInt(tokens[k])===m+1||parseInt(tokens[k])===m+2)break;
-          k++;
         }
       }
-      if(weeks.length>0)data[m]={hj,w:weeks};
+
+      /* 기도 */
+      if(k<mt.length&&isPersonName(mt[k])){prayer=mt[k];k++;}
+      /* 교사회 기도 */
+      if(k<mt.length&&isPersonName(mt[k])){tp=mt[k];k++;}
+
+      if(lesson||event||prayer){
+        weeks.push({d:day,h:holiday,l:lesson,e:event.trim(),p:prayer,tp});
+      }
+      wi=k;
     }
-    i++;
+
+    if(weeks.length>0)data[m]={hj,w:weeks};
   }
   return data;
 }
+  }
+  return tokens;
+}
 
+/* ── 절기 합성: 두 토큰으로 쪼개진 절기를 하나로 합침 ── */
+const HOLIDAY_PAIRS={
+  '종려':'종려주일','맥추':'맥추감사','추수':'추수감사','송구':'송구영신',
+  '어린이':'어린이주일','어버이':'어버이주일','전도':'전도축제',
+};
+const HOLIDAY_SINGLE=new Set([
+  '신년','설날','추석','부활주일','성탄','부활','맥추감사','추수감사',
+  '종려주일','어린이주일','어버이주일','전도축제','송구영신',
+]);
+
+function mergeHolidayTokens(tokens){
+  /* 인접한 절기 쪼개기 토큰 합성 후 반환 */
+  const out=[];
+  for(let i=0;i<tokens.length;i++){
+    const t=tokens[i];
+    if(HOLIDAY_PAIRS[t]&&i+1<tokens.length){
+      const next=tokens[i+1];
+      /* '종려'+'주일' → '종려주일' 등 */
+      const merged=t+next;
+      if(['주일','감사','영신','축제'].includes(next)){
+        out.push(merged);i++;continue;
+      }
+    }
+    out.push(t);
+  }
+  return out;
+}
+
+/* ── 이름 판별: 2~6자 순한글(콤마 허용) ── */
 function isPersonName(s){
-  if(!s||s.length<2||s.length>8)return false;
-  if(/\d/.test(s))return false;
-  if(s.includes('과')||s.includes('설교')||s.includes('주일')||s.includes('절기'))return false;
-  return /^[가-힣,]+$/.test(s);
+  if(!s)return false;
+  const t=s.trim();
+  if(t.length<2||t.length>7)return false;
+  if(/[0-9_]/.test(t))return false;
+  /* 절기·공과·행사 키워드 포함 시 제외 */
+  const KW=['과','설교','주일','절기','학교','행사','활동','기부','생일','암송',
+            '편성','체험','올림픽','배우기','공지','만들기','찬양대회','찬양배우기'];
+  if(KW.some(k=>t.includes(k)))return false;
+  return /^[가-힣,]+$/.test(t);
+}
+
+/* ── 헌금/정리조 토큰 판별 ── */
+const HJ_COLORS=['보라','파랑','초록','노랑','주황','빨강'];
+function isHjColor(s){return HJ_COLORS.some(c=>s.startsWith(c));}
+function isHjOrg(s){return /[A-Z]조/.test(s)||s.includes('조 (');}
+
+/* ── 실제 토큰 순서 기반 스케줄 파서 ──
+   실제 HWP 토큰 순서 (260426 기준):
+   [월] [일] [?절기] [공과] [행사] [기도] [?교사기도]
+         [헌금색] [(담당)] / [조] [(멤버)]  ← 첫 주차 직후에 등장
+   다음 주차: [일] [?절기] [공과] [행사] [기도] [?교사기도]
+   ...
+*/
+function parseHwpSchedule(rawTokens){
+  const tokens=mergeHolidayTokens(rawTokens);
+  const data={};
+
+  /* 월 시작 인덱스 목록 수집 */
+  const monthStarts=[];
+  for(let i=0;i<tokens.length;i++){
+    const n=parseInt(tokens[i]);
+    if(n>=1&&n<=12&&/^\d{1,2}$/.test(tokens[i].trim())){
+      /* 다음 토큰이 일(1~31)이거나 절기/공과여야 월로 인정 */
+      if(i+1<tokens.length){
+        const nx=parseInt(tokens[i+1]);
+        if(nx>=1&&nx<=31&&/^\d{1,2}$/.test(tokens[i+1].trim())){
+          monthStarts.push({m:n,i});
+        }
+      }
+    }
+  }
+
+  for(let mi=0;mi<monthStarts.length;mi++){
+    const {m,i:mStart}=monthStarts[mi];
+    if(data[m])continue; /* 중복 월 무시 */
+    const mEnd=mi+1<monthStarts.length?monthStarts[mi+1].i:tokens.length;
+
+    const monthTokens=tokens.slice(mStart+1,mEnd); /* 월 번호 다음부터 */
+
+    /* 헌금/정리조(hj) 수집: 색 + (담당) + / + 조 + (멤버) */
+    let hjColor='',hjPerson='',hjOrg='';
+    for(let t=0;t<monthTokens.length;t++){
+      const tk=monthTokens[t];
+      if(isHjColor(tk)&&!hjColor){hjColor=tk;continue;}
+      if(hjColor&&!hjPerson&&tk.startsWith('(')&&tk.endsWith(')')){hjPerson=tk.slice(1,-1);continue;}
+      if(tk==='/')continue;
+      if((tk.endsWith('조')||/[A-Z]조/.test(tk))&&!hjOrg){hjOrg=tk;continue;}
+      if(hjOrg&&tk.startsWith('(')&&tk.endsWith(')')){hjOrg+=` ${tk}`;break;}
+    }
+    const hj=hjColor&&hjPerson&&hjOrg
+      ?`${hjColor} (${hjPerson}) / ${hjOrg}`
+      :(hjColor?hjColor:'');
+
+    /* 주차별 데이터 수집
+       주차 경계: 정수 1~31 토큰이 등장하는 곳 */
+    const weeks=[];
+    let wi=0;
+    while(wi<monthTokens.length){
+      const day=parseInt(monthTokens[wi]);
+      if(!(day>=1&&day<=31&&/^\d{1,2}$/.test(monthTokens[wi].trim()))){wi++;continue;}
+      let k=wi+1;
+      let holiday='',lesson='',event='',prayer='',tp='';
+
+      /* 절기: 단일 절기 키워드인 토큰 */
+      if(k<monthTokens.length&&HOLIDAY_SINGLE.has(monthTokens[k])){
+        holiday=monthTokens[k];k++;
+      }
+
+      /* 공과: '과' 포함 or '설교' or '성경' or '학교' 포함 */
+      if(k<monthTokens.length){
+        const lt=monthTokens[k];
+        if(lt.includes('과')||lt.includes('설교')||lt.includes('성경학교')||lt.includes('학교')){
+          lesson=lt;k++;
+        }
+      }
+
+      /* 행사(3부): 인명도 숫자도 색깔도 아닌 텍스트
+         단, 다음 주차 일자 숫자가 오면 중단 */
+      if(k<monthTokens.length){
+        const et=monthTokens[k];
+        const nd=parseInt(et);
+        if(!isPersonName(et)&&!(nd>=1&&nd<=31&&/^\d{1,2}$/.test(et))
+           &&!isHjColor(et)&&et!=='/'&&!et.startsWith('(')){
+          /* 행사가 두 토큰으로 쪼개진 경우 합산 (예: '어버이주일행사'+'야외예배') */
+          event=et;k++;
+          if(k<monthTokens.length){
+            const et2=monthTokens[k];
+            const nd2=parseInt(et2);
+            if(!isPersonName(et2)&&!(nd2>=1&&nd2<=31&&/^\d{1,2}$/.test(et2))
+               &&!isHjColor(et2)&&et2!=='/'&&!et2.startsWith('(')){
+              event+=' '+et2;k++;
+            }
+          }
+        }
+      }
+
+      /* 기도: 인명 */
+      if(k<monthTokens.length&&isPersonName(monthTokens[k])){prayer=monthTokens[k];k++;}
+
+      /* 교사회 기도: 인명 (2월부터) */
+      if(k<monthTokens.length&&isPersonName(monthTokens[k])){tp=monthTokens[k];k++;}
+
+      if(lesson||event||prayer){
+        weeks.push({d:day,h:holiday,l:lesson,e:event.trim(),p:prayer,tp});
+      }
+      wi=k;
+    }
+
+    if(weeks.length>0)data[m]={hj,w:weeks};
+  }
+  return data;
 }
 
 function applyHwpData(){
