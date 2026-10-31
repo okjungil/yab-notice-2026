@@ -168,7 +168,7 @@ textarea{resize:vertical;min-height:72px}
   var OVERRIDE_KEY='yab26pwHash';
   var AUTH_KEY='yab26auth';
   var FB_URL='https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app';
-  var FB_SEC='';
+  var FB_SEC='30b1b1836249f903a416796a959d81c07c53a06b';
   var fbOk=FB_URL.startsWith('https://')&&FB_SEC.length>10;
 
   function getHash(){
@@ -728,7 +728,7 @@ async function copyText(){
 /* ── Firebase 실시간 동기화 레이어 ── */
 const FB={
   url:'https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app',
-  secret:'',
+  secret:'30b1b1836249f903a416796a959d81c07c53a06b',
   get ok(){return this.url.startsWith('https://');},
   path(p){
     const base=`${this.url}/${p}.json`;
