@@ -658,66 +658,95 @@ async function copyText(){
   btn.textContent='완료 ✓';setTimeout(()=>{btn.textContent='복사';},2000);
 }
 
-/* ── Firebase 실시간 동기화 레이어 ── */
-const FB={
-  url:'__FB_DB_URL__',
-  secret:'__FB_SECRET__',
-  get ok(){return this.url.startsWith('https://');},
-  path(p){
-    const base=`${this.url}/${p}.json`;
-    return this.secret.length>10?`${base}?auth=${this.secret}`:base;
-  },
-  sse(p){
-    const base=`${this.url}/${p}.json`;
-    return this.secret.length>10?`${base}?auth=${this.secret}`:base;
-  }
+/* ── GitHub Contents API 실시간 동기화 레이어 ── */
+const GH={
+  token:'__GH_TOKEN__',
+  repo:'__GH_REPO__',
+  branch:'data',
+  get ok(){return this.token.length>10&&this.repo.includes('/');},
+  apiBase(){return `https://api.github.com/repos/${this.repo}/contents/data`;},
+  headers(){return {
+    'Authorization':`token ${this.token}`,
+    'Accept':'application/vnd.github.v3+json',
+    'Content-Type':'application/json'
+  };}
 };
 
-let _fbEsStopped=false;
-let _fbEsRef=null;
+/* SHA 캐시 (PUT시 필요) */
+const _ghSha={};
+let _pollTimer=null;
+let _pollStopped=false;
 
-function fbWrite(path,data){
-  if(!FB.ok)return Promise.resolve();
-  return fetch(FB.path(path),{
-    method:'PUT',
-    body:JSON.stringify(data),
-    headers:{'Content-Type':'application/json'}
-  }).then(r=>{if(!r.ok)console.warn('fbWrite fail',r.status);return r;})
-    .catch(e=>console.warn('fbWrite err',e));
+async function ghRead(file){
+  if(!GH.ok)return null;
+  try{
+    const r=await fetch(`${GH.apiBase()}/${file}`,{headers:GH.headers()});
+    if(!r.ok)return null;
+    const d=await r.json();
+    _ghSha[file]=d.sha;
+    return JSON.parse(atob(d.content.replace(/\n/g,'')));
+  }catch(e){console.warn('ghRead err',e);return null;}
 }
 
-function fbRead(path){
-  if(!FB.ok)return Promise.resolve(null);
-  return fetch(FB.path(path)).then(r=>r.ok?r.json():null).catch(()=>null);
+async function ghWrite(file,data){
+  if(!GH.ok)return;
+  try{
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2))));
+    const sha=_ghSha[file];
+    const body={message:`sync: update ${file}`,content,branch:GH.branch};
+    if(sha)body.sha=sha;
+    const r=await fetch(`${GH.apiBase()}/${file}`,{
+      method:'PUT',headers:GH.headers(),body:JSON.stringify(body)
+    });
+    if(r.ok){const d=await r.json();_ghSha[file]=d.content.sha;}
+    else console.warn('ghWrite fail',r.status,await r.text());
+  }catch(e){console.warn('ghWrite err',e);}
 }
 
-function fbListen(path,onData){
-  if(!FB.ok)return;
-  if(_fbEsRef){_fbEsRef.close();}
-  _fbEsStopped=false;
-  let es;
-  function connect(){
-    if(_fbEsStopped)return;
-    es=new EventSource(FB.sse(path));
-    _fbEsRef=es;
-    es.addEventListener('put',e=>{
-      try{
-        const d=JSON.parse(e.data);
-        if(d&&'data' in d)onData(d.data);
-      }catch{}
-    });
-    es.addEventListener('patch',e=>{
-      try{
-        const d=JSON.parse(e.data);
-        if(d&&'data' in d)onData(d.data);
-      }catch{}
-    });
-    es.onerror=()=>{es.close();if(!_fbEsStopped)setTimeout(connect,5000);};
+function ghListen(file,onData){
+  if(!GH.ok)return;
+  _pollStopped=false;
+  let lastSha='';
+  async function poll(){
+    if(_pollStopped)return;
+    try{
+      const r=await fetch(`${GH.apiBase()}/${file}`,{headers:GH.headers()});
+      if(r.ok){
+        const d=await r.json();
+        if(d.sha!==lastSha){
+          lastSha=d.sha;
+          _ghSha[file]=d.sha;
+          const parsed=JSON.parse(atob(d.content.replace(/\n/g,'')));
+          onData(parsed);
+        }
+      }
+    }catch{}
+    if(!_pollStopped)_pollTimer=setTimeout(poll,30000);
   }
-  connect();
+  poll();
 }
 
-function fbStopListen(){_fbEsStopped=true;if(_fbEsRef){_fbEsRef.close();_fbEsRef=null;}}
+function ghStopListen(){_pollStopped=true;if(_pollTimer){clearTimeout(_pollTimer);_pollTimer=null;}}
+
+/* 하위 호환 래퍼 (기존 코드가 fbWrite/fbRead/fbListen 호출) */
+const FB={
+  get ok(){return GH.ok;}
+};
+function fbWrite(path,data){
+  /* path: 'history' → history.json, 'config/pwHash' → config.json의 pwHash 키 */
+  if(path==='history'){return ghWrite('history.json',data);}
+  if(path==='config/pwHash'){return ghWrite('config.json',{pwHash:data});}
+  return Promise.resolve();
+}
+async function fbRead(path){
+  if(path==='history'){return ghRead('history.json');}
+  if(path==='config/pwHash'){const d=await ghRead('config.json');return d?d.pwHash:null;}
+  return null;
+}
+function fbListen(path,onData){
+  if(path==='history')ghListen('history.json',onData);
+}
+function fbStopListen(){ghStopListen();}
 
 /* ── 이력 저장/조회 ── */
 const HIST_KEY='yab26hist';
@@ -756,8 +785,8 @@ function startHistorySync(){
 function updateSyncBadge(ok){
   const b=document.getElementById('syncBadge');
   if(!b)return;
-  if(!FB.ok){b.textContent='오프라인 모드';b.style.background='var(--sf3)';b.style.color='var(--t3)';return;}
-  b.textContent=ok?'🔴 실시간 연결됨':'연결 중…';
+  if(!GH.ok){b.textContent='오프라인 모드';b.style.background='var(--sf3)';b.style.color='var(--t3)';return;}
+  b.textContent=ok?'🟢 동기화 연결됨':'연결 중…';
   b.style.background=ok?'#dcfce7':'var(--ac2)';
   b.style.color=ok?'var(--ok)':'var(--ac)';
 }
@@ -787,7 +816,7 @@ function renderHistory(){
   const empty=document.getElementById('histEmpty');
   const count=document.getElementById('histCount');
   list.querySelectorAll('.hist-card').forEach(el=>el.remove());
-  updateSyncBadge(!!_fbEsRef&&!_fbEsStopped);
+  updateSyncBadge(GH.ok&&!_pollStopped);
   if(arr.length===0){
     empty.style.display='flex';
     count.textContent='저장된 안내문이 없습니다.';
@@ -834,7 +863,7 @@ function deleteHistItem(key){
 function clearAllHistory(){
   if(!confirm('저장된 안내문을 모두 삭제하시겠습니까?'))return;
   persistHistory([]);
-  if(FB.ok)fbWrite('history',null);
+  if(FB.ok)fbWrite('history',{});
   renderHistory();
   showToast('전체 삭제 완료');
 }

@@ -4,18 +4,19 @@ ROOT = pathlib.Path(__file__).parent.parent
 SRC  = ROOT / "output" / "영아부_예배안내_생성기.html"
 DEST = ROOT / "docs" / "index.html"
 
-PW_HASH   = os.environ.get("PW_HASH",   "b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08")
-FB_DB_URL = os.environ.get("FB_DB_URL", "https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app")
-FB_SECRET = os.environ.get("FB_SECRET", "30b1b1836249f903a416796a959d81c07c53a06b")
+PW_HASH  = os.environ.get("PW_HASH",   "b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08")
+GH_TOKEN = os.environ.get("GH_TOKEN",  "")   # GitHub Actions: GH_DATA_TOKEN secret
+GH_REPO  = os.environ.get("GH_REPO",   "okjungil/yab-notice-2026")
 
 GATE = f"""<script>
 (function(){{
   var DEFAULT_HASH='{PW_HASH}';
   var OVERRIDE_KEY='yab26pwHash';
   var AUTH_KEY='yab26auth';
-  var FB_URL='{FB_DB_URL}';
-  var FB_SEC='{FB_SECRET}';
-  var fbOk=FB_URL.startsWith('https://')&&FB_SEC.length>10;
+  var GH_TOKEN='{GH_TOKEN}';
+  var GH_REPO='{GH_REPO}';
+  var ghOk=GH_TOKEN.length>10&&GH_REPO.includes('/');
+  var CONFIG_URL='https://api.github.com/repos/'+GH_REPO+'/contents/data/config.json?ref=data';
 
   function getHash(){{
     return localStorage.getItem(OVERRIDE_KEY)||DEFAULT_HASH;
@@ -60,12 +61,15 @@ GATE = f"""<script>
     setTimeout(function(){{document.getElementById('pwInput')&&document.getElementById('pwInput').focus();}},100);
   }}
 
-  if(fbOk){{
-    fetch(FB_URL+'/config/pwHash.json?auth='+FB_SEC)
+  if(ghOk){{
+    fetch(CONFIG_URL,{{headers:{{'Authorization':'token '+GH_TOKEN,'Accept':'application/vnd.github.v3+json'}}}})
       .then(function(r){{return r.ok?r.json():null;}})
-      .then(function(remote){{
-        if(remote&&typeof remote==='string'&&remote.length===64){{
-          localStorage.setItem(OVERRIDE_KEY,remote);
+      .then(function(d){{
+        if(d&&d.content){{
+          try{{
+            var cfg=JSON.parse(atob(d.content.replace(/\\n/g,'')));
+            if(cfg.pwHash&&cfg.pwHash.length===64)localStorage.setItem(OVERRIDE_KEY,cfg.pwHash);
+          }}catch{{}}
         }}
         if(!trySession())showGate();
       }})
@@ -79,12 +83,13 @@ GATE = f"""<script>
 
 src = SRC.read_text(encoding="utf-8")
 
-out = src.replace("'__FB_DB_URL__'", f"'{FB_DB_URL}'") \
-         .replace("'__FB_SECRET__'", f"'{FB_SECRET}'")
+out = src.replace("'__GH_TOKEN__'", f"'{GH_TOKEN}'") \
+         .replace("'__GH_REPO__'",  f"'{GH_REPO}'")
 
 out = out.replace("<body>\n", "<body>\n" + GATE, 1)
 
 DEST.parent.mkdir(parents=True, exist_ok=True)
 DEST.write_text(out, encoding="utf-8")
 print(f"✅  {DEST} ({len(out):,} chars)")
-print(f"🔥 Firebase URL: {FB_DB_URL or '(미설정)'}")
+print(f"🐙 GitHub Repo: {GH_REPO}")
+print(f"🔑 Token: {GH_TOKEN[:10]}...")
