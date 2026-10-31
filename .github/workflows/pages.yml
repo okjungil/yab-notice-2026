@@ -26,6 +26,10 @@ jobs:
 
       - name: Rebuild docs/index.html with password gate
         run: python3 scripts/inject_gate.py
+        env:
+          PW_HASH: ${{ secrets.PW_HASH }}
+          GH_TOKEN: ${{ secrets.GH_DATA_TOKEN }}
+          GH_REPO: ${{ secrets.GH_REPO }}
 
       - name: Commit regenerated docs if changed
         run: |
