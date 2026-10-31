@@ -167,9 +167,6 @@ textarea{resize:vertical;min-height:72px}
 <header class="topbar">
   <h1>영아부 예배 안내 생성기 <span>2026</span></h1>
   <div class="tb-right">
-    <button class="btn btn-g btn-s" onclick="exportJSON()">JSON 내보내기</button>
-    <button class="btn btn-g btn-s" onclick="document.getElementById('impFile').click()">JSON 가져오기</button>
-    <input id="impFile" type="file" accept=".json" style="display:none" onchange="importJSON(event)">
     <button class="btn btn-g btn-s" onclick="openModal('pwChangeModal')">🔑 비밀번호 변경</button>
     <button class="btn btn-p btn-s" onclick="openModal('hwpModal')">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -179,10 +176,10 @@ textarea{resize:vertical;min-height:72px}
 </header>
 
 <nav class="tabs">
-  <button class="tab on" onclick="switchTab('guide',this)">📋 예배 안내 생성</button>
-  <button class="tab" onclick="switchTab('edit',this)">✏️ 일정 편집</button>
-  <button class="tab" onclick="switchTab('notice',this)">📝 공지 양식 편집</button>
+  <button class="tab on" onclick="switchTab('guide',this)">📋 예배 안내</button>
   <button class="tab" onclick="switchTab('history',this)">🗂️ 저장 이력</button>
+  <button class="tab" onclick="switchTab('edit',this)">✏️ 일정 편집</button>
+  <button class="tab" onclick="switchTab('notice',this)">📝 양식 편집</button>
 </nav>
 
 <!-- ═══ 탭 1: 예배 안내 생성 ═══ -->
@@ -665,8 +662,15 @@ async function copyText(){
 const FB={
   url:'__FB_DB_URL__',
   secret:'__FB_SECRET__',
-  get ok(){return this.url.startsWith('https://') && this.secret.length>10;},
-  path(p){return `${this.url}/${p}.json?auth=${this.secret}`;}
+  get ok(){return this.url.startsWith('https://');},
+  path(p){
+    const base=`${this.url}/${p}.json`;
+    return this.secret.length>10?`${base}?auth=${this.secret}`:base;
+  },
+  sse(p){
+    const base=`${this.url}/${p}.json`;
+    return this.secret.length>10?`${base}?auth=${this.secret}`:base;
+  }
 };
 
 let _fbEsStopped=false;
@@ -674,7 +678,12 @@ let _fbEsRef=null;
 
 function fbWrite(path,data){
   if(!FB.ok)return Promise.resolve();
-  return fetch(FB.path(path),{method:'PUT',body:JSON.stringify(data),headers:{'Content-Type':'application/json'}}).catch(()=>{});
+  return fetch(FB.path(path),{
+    method:'PUT',
+    body:JSON.stringify(data),
+    headers:{'Content-Type':'application/json'}
+  }).then(r=>{if(!r.ok)console.warn('fbWrite fail',r.status);return r;})
+    .catch(e=>console.warn('fbWrite err',e));
 }
 
 function fbRead(path){
@@ -686,17 +695,22 @@ function fbListen(path,onData){
   if(!FB.ok)return;
   if(_fbEsRef){_fbEsRef.close();}
   _fbEsStopped=false;
-  const url=`${FB.url}/${path}.json?auth=${FB.secret}`;
   let es;
   function connect(){
     if(_fbEsStopped)return;
-    es=new EventSource(url);
+    es=new EventSource(FB.sse(path));
     _fbEsRef=es;
     es.addEventListener('put',e=>{
-      try{const d=JSON.parse(e.data);if(d&&d.data!==undefined)onData(d.data);}catch{}
+      try{
+        const d=JSON.parse(e.data);
+        if(d&&'data' in d)onData(d.data);
+      }catch{}
     });
     es.addEventListener('patch',e=>{
-      try{const d=JSON.parse(e.data);if(d&&d.data!==undefined)onData(d.data);}catch{}
+      try{
+        const d=JSON.parse(e.data);
+        if(d&&'data' in d)onData(d.data);
+      }catch{}
     });
     es.onerror=()=>{es.close();if(!_fbEsStopped)setTimeout(connect,5000);};
   }
@@ -731,11 +745,11 @@ async function syncHistoryFromFb(){
 function startHistorySync(){
   if(!FB.ok)return;
   fbListen('history',raw=>{
+    updateSyncBadge(true);
     if(!raw||typeof raw!=='object')return;
     const arr=Object.values(raw).filter(Boolean).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
     try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
     if(document.getElementById('tab-history').style.display!=='none')renderHistory();
-    updateSyncBadge(true);
   });
 }
 

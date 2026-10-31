@@ -5,7 +5,7 @@ SRC  = ROOT / "output" / "영아부_예배안내_생성기.html"
 DEST = ROOT / "docs" / "index.html"
 
 PW_HASH   = os.environ.get("PW_HASH",   "b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08")
-FB_DB_URL = os.environ.get("FB_DB_URL", "")
+FB_DB_URL = os.environ.get("FB_DB_URL", "https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app")
 FB_SECRET = os.environ.get("FB_SECRET", "")
 
 GATE = f"""<script>
@@ -87,5 +87,4 @@ out = out.replace("<body>\n", "<body>\n" + GATE, 1)
 DEST.parent.mkdir(parents=True, exist_ok=True)
 DEST.write_text(out, encoding="utf-8")
 print(f"✅  {DEST} ({len(out):,} chars)")
-if not FB_DB_URL:
-    print("⚠️  FB_DB_URL 미설정 — Firebase 동기화 비활성 (오프라인 모드)")
+print(f"🔥 Firebase URL: {FB_DB_URL or '(미설정)'}")
