@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>영아부 예배 안내 생성기 2026</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fafaf9;--sf:#fff;--sf2:#f5f5f4;--sf3:#e7e5e4;
+  --bd:rgba(0,0,0,.07);--bdm:rgba(0,0,0,.13);
+  --t1:#1c1917;--t2:#57534e;--t3:#a8a29e;
+  --ac:#b45309;--ac2:#fef3c7;--ac3:#92400e;--ok:#166534;
+  --r:8px;--rlg:14px;
+  font-family:'Inter var','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  font-feature-settings:'cv11','ss01'
+}
+body{background:var(--bg);color:var(--t1);min-height:100dvh;font-size:16px;line-height:1.6}
+
+/* topbar */
+.topbar{position:sticky;top:0;z-index:40;background:var(--sf);border-bottom:1px solid var(--bd);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.topbar h1{font-size:15px;font-weight:600;letter-spacing:-.02em}
+.topbar h1 span{font-size:12px;color:var(--t3);font-weight:400;margin-left:3px}
+.tb-right{display:flex;gap:6px;flex-wrap:wrap}
+
+/* tabs */
+.tabs{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 18px;display:flex;overflow-x:auto}
+.tab{padding:10px 14px;font-size:13px;font-weight:500;color:var(--t3);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color 120ms,border-color 120ms}
+.tab:hover{color:var(--t2)}
+.tab.on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
+
+/* layout */
+.app{display:flex;min-height:calc(100dvh - 90px)}
+.sidebar{width:296px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;position:sticky;top:90px;height:calc(100dvh - 90px)}
+.content{flex:1;padding:20px 22px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+
+/* form */
+label.lbl{display:block;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:4px}
+.sw{position:relative}
+.sw::after{content:'';position:absolute;right:10px;top:50%;transform:translateY(-50%);border:4px solid transparent;border-top:5px solid var(--t2);pointer-events:none}
+select,input[type=text],input[type=number],textarea{width:100%;padding:8px 11px;border:1px solid var(--bdm);border-radius:var(--r);background:var(--sf);color:var(--t1);font-size:14px;font-family:inherit;line-height:1.5;appearance:none;transition:border-color 120ms,box-shadow 120ms}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px rgba(180,83,9,.12)}
+textarea{resize:vertical;min-height:72px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 13px;border:none;border-radius:var(--r);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:background 120ms,color 120ms;white-space:nowrap}
+.btn-w{width:100%}
+.btn-p{background:var(--ac);color:#fff}
+.btn-p:hover{background:var(--ac3)}
+.btn-g{background:transparent;color:var(--t2);border:1px solid var(--bdm)}
+.btn-g:hover{background:var(--sf2);color:var(--ac);border-color:var(--ac)}
+.btn-s{padding:5px 10px;font-size:12px}
+.btn-d{background:#fee2e2;color:#dc2626}
+.btn-d:hover{background:#fca5a5}
+.btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+
+/* cards */
+.card{background:var(--sf);border-radius:var(--rlg);box-shadow:0 0 0 1px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.05);overflow:hidden}
+.card-head{background:linear-gradient(135deg,#7c2d12 0%,#b45309 100%);padding:18px 22px;color:#fff}
+.card-head .pill{display:inline-block;background:rgba(255,255,255,.22);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:500;margin-bottom:6px}
+.card-head h2{font-size:18px;font-weight:600;letter-spacing:-.025em;line-height:1.3}
+.card-head .htag{display:inline-block;background:rgba(255,255,255,.26);border-radius:4px;padding:2px 8px;font-size:12px;font-weight:500;margin-top:5px}
+.rows{padding:2px 0}
+.row{display:grid;grid-template-columns:90px 1fr;gap:5px 12px;padding:10px 22px;border-bottom:1px solid var(--bd);align-items:start}
+.row:last-child{border-bottom:none}
+.rl{font-size:12px;font-weight:600;color:var(--t3);padding-top:2px}
+.rv{font-size:14px;color:var(--t1);line-height:1.5}
+.nb{margin:0 22px 18px;padding:11px 13px;background:#fefce8;border-left:3px solid #ca8a04;border-radius:0 var(--r) var(--r) 0}
+.nb .nbt{font-size:11px;font-weight:700;color:#92400e;margin-bottom:3px}
+.nb .nbb{font-size:13px;color:#78350f;line-height:1.65;white-space:pre-wrap}
+.sh{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:11px 18px;background:var(--sf2);border-bottom:1px solid var(--bd)}
+.sh h3{font-size:13px;font-weight:600;letter-spacing:-.01em}
+.badge{background:var(--ac2);color:var(--ac);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600}
+.mrow{display:grid;grid-template-columns:58px 1fr;gap:4px 10px;padding:9px 18px;border-bottom:1px solid var(--bd);align-items:start}
+.mrow:last-child{border-bottom:none}
+.mrow.on{background:var(--ac2)}
+.md{font-size:13px;font-weight:600;color:var(--ac);font-variant-numeric:tabular-nums}
+.mi{font-size:13px;color:var(--t2)}
+.mi strong{color:var(--t1);font-weight:500}
+.mi small{display:block;font-size:11px;color:var(--t3)}
+.oh{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:var(--sf2);border-bottom:1px solid var(--bd)}
+.oh span{font-size:13px;font-weight:600;color:var(--t2)}
+.ob{padding:14px 18px;font-size:13px;line-height:1.8;color:var(--t2);white-space:pre-wrap;user-select:all;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:56px 24px;text-align:center;color:var(--t3)}
+.empty svg{opacity:.4}
+.empty p{font-size:14px}
+
+/* edit tab */
+.mtabs{display:flex;overflow-x:auto;background:var(--sf);border-bottom:1px solid var(--bd);padding:0 18px}
+.mtab{padding:8px 11px;font-size:12px;font-weight:500;color:var(--t3);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color 100ms}
+.mtab.on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
+.ec{padding:18px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.ecard{background:var(--sf);border-radius:var(--rlg);box-shadow:0 0 0 1px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.05);overflow:hidden}
+.ech{background:var(--sf2);padding:9px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bd)}
+.ech h4{font-size:13px;font-weight:600}
+.ecb{padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+.frow{display:grid;gap:8px}
+.f2{grid-template-columns:1fr 1fr}
+.f3{grid-template-columns:1fr 1fr 1fr}
+.f4{grid-template-columns:1fr 1fr 1fr 1fr}
+.fi{display:flex;flex-direction:column;gap:3px}
+.mmeta{background:var(--sf);border-radius:var(--rlg);box-shadow:0 0 0 1px rgba(0,0,0,.06);padding:13px 14px;display:flex;flex-direction:column;gap:7px}
+.mmeta h4{font-size:13px;font-weight:600;margin-bottom:2px}
+
+/* notice template editor */
+.ntpl{background:var(--sf);border-radius:var(--rlg);box-shadow:0 0 0 1px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.05);overflow:hidden}
+.ntpl-head{background:var(--sf2);padding:11px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.ntpl-head h3{font-size:13px;font-weight:600}
+.ntpl-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.tpl-row{display:grid;grid-template-columns:100px 1fr;gap:8px;align-items:start}
+.tpl-label{font-size:12px;font-weight:600;color:var(--t3);padding-top:9px}
+.tpl-hint{font-size:11px;color:var(--t3);margin-top:3px;line-height:1.5}
+.preview-box{background:var(--sf2);border-radius:var(--r);padding:13px 15px;font-size:13px;line-height:1.8;white-space:pre-wrap;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:var(--t2);border:1px solid var(--bd)}
+
+/* upload zone */
+.upzone{border:2px dashed var(--bdm);border-radius:var(--rlg);padding:24px 18px;text-align:center;cursor:pointer;transition:border-color 120ms,background 120ms;background:var(--sf)}
+.upzone:hover,.upzone.drag{border-color:var(--ac);background:var(--ac2)}
+.upzone p{font-size:13px;color:var(--t3);margin-top:5px}
+.upzone strong{font-size:14px;color:var(--t2)}
+.parse-result{background:var(--sf2);border-radius:var(--r);padding:10px 13px;font-size:12px;color:var(--t2);line-height:1.65;border:1px solid var(--bd)}
+.parse-result.ok{background:#dcfce7;color:var(--ok);border-color:#bbf7d0}
+.parse-result.err{background:#fee2e2;color:#dc2626;border-color:#fca5a5}
+
+/* modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:center;justify-content:center;padding:16px}
+.modal-bg.open{display:flex}
+.modal{background:var(--sf);border-radius:var(--rlg);width:100%;max-width:520px;max-height:90dvh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18);display:flex;flex-direction:column}
+.mh{padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.mh h3{font-size:15px;font-weight:600}
+.mc{width:28px;height:28px;border:none;background:none;cursor:pointer;font-size:20px;color:var(--t3);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.mc:hover{background:var(--sf2)}
+.mb{padding:18px;display:flex;flex-direction:column;gap:13px;flex:1}
+.mf{padding:13px 18px;border-top:1px solid var(--bd);display:flex;gap:8px;justify-content:flex-end}
+.hbox{background:var(--ac2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--ac3);line-height:1.65}
+.hbox strong{display:block;margin-bottom:2px}
+
+/* toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--t1);color:#fff;padding:9px 16px;border-radius:var(--rlg);font-size:13px;font-weight:500;opacity:0;transition:opacity 200ms;z-index:200;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+
+@media(max-width:660px){
+  .app{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:static}
+  .content{padding:14px}
+  .f3{grid-template-columns:1fr 1fr}
+  .f4{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<header class="topbar">
+  <h1>영아부 예배 안내 생성기 <span>2026</span></h1>
+  <div class="tb-right">
+    <button class="btn btn-g btn-s" onclick="exportJSON()">JSON 내보내기</button>
+    <button class="btn btn-g btn-s" onclick="document.getElementById('impFile').click()">JSON 가져오기</button>
+    <input id="impFile" type="file" accept=".json" style="display:none" onchange="importJSON(event)">
+    <button class="btn btn-p btn-s" onclick="openModal('hwpModal')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      HWP 업로드
+    </button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab on" onclick="switchTab('guide',this)">📋 예배 안내 생성</button>
+  <button class="tab" onclick="switchTab('edit',this)">✏️ 일정 편집</button>
+  <button class="tab" onclick="switchTab('notice',this)">📝 공지 양식 편집</button>
+</nav>
+
+<!-- ═══ 탭 1: 예배 안내 생성 ═══ -->
+<div class="app" id="tab-guide">
+  <aside class="sidebar">
+    <div>
+      <label class="lbl" for="dateSelect">예배 날짜</label>
+      <div class="sw">
+        <select id="dateSelect" onchange="onDate()">
+          <option value="">— 날짜를 선택하세요 —</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="lbl" for="noticeInput">✔️ 이번 주 공지 (수기 작성)</label>
+      <textarea id="noticeInput" placeholder="공지 내용을 입력하세요." oninput="refresh()"></textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-p btn-w" onclick="onDate()">안내문 생성</button>
+      <button class="btn btn-g btn-w" onclick="resetGuide()">초기화</button>
+    </div>
+    <div style="font-size:12px;color:var(--t3);line-height:1.75;padding-top:12px;border-top:1px solid var(--bd)">
+      <strong style="color:var(--t2);display:block;margin-bottom:2px">사용 방법</strong>
+      1. 날짜 선택 → 자동 입력<br>
+      2. 공지 직접 작성 (선택)<br>
+      3. 월간 3부 자동 표시<br>
+      4. 복사 버튼으로 공유
+    </div>
+  </aside>
+
+  <main class="content">
+    <div class="empty" id="gEmpty">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <p>날짜를 선택하면<br>예배 안내문이 생성됩니다.</p>
+    </div>
+    <div id="gOut" style="display:none;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-head">
+          <div class="pill" id="pill"></div>
+          <h2 id="ctitle"></h2>
+          <div id="htag" class="htag" style="display:none"></div>
+        </div>
+        <div class="rows" id="rows"></div>
+        <div class="nb" id="nb" style="display:none">
+          <div class="nbt">✔️ 이번 주 공지</div>
+          <div class="nbb" id="nbb"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="sh">
+          <div style="display:flex;align-items:center;gap:7px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <h3 id="mtitle"></h3>
+          </div>
+          <span class="badge">월간 공지</span>
+        </div>
+        <div id="mrows"></div>
+      </div>
+      <div class="card">
+        <div class="oh">
+          <span>카카오톡 복사용</span>
+          <button class="btn btn-p btn-s" id="copyBtn" onclick="copyText()">복사</button>
+        </div>
+        <div class="ob" id="otext"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ═══ 탭 2: 일정 편집 ═══ -->
+<div id="tab-edit" style="display:none;flex-direction:column">
+  <div style="padding:12px 18px;background:var(--sf);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <span style="font-size:13px;color:var(--t2)">수정 내용은 자동 저장됩니다. HWP를 업로드하면 전체 데이터를 교체할 수 있습니다.</span>
+    <button class="btn btn-g btn-s" onclick="restoreDefault()">초기 데이터로 복원</button>
+  </div>
+  <div style="overflow-x:auto;background:var(--sf);border-bottom:1px solid var(--bd)">
+    <div class="mtabs" id="mtabs"></div>
+  </div>
+  <div class="ec" id="ec"></div>
+</div>
+
+<!-- ═══ 탭 3: 공지 양식 편집 ═══ -->
+<div id="tab-notice" style="display:none;flex-direction:column">
+  <div style="padding:20px 22px;display:flex;flex-direction:column;gap:16px;max-width:800px">
+
+    <div class="ntpl">
+      <div class="ntpl-head">
+        <h3>안내문 항목 라벨 설정</h3>
+        <button class="btn btn-g btn-s" onclick="resetTpl()">기본값 복원</button>
+      </div>
+      <div class="ntpl-body">
+        <div class="hbox">
+          <strong>사용 가능한 변수</strong>
+          <code>{기도}</code> 기도 담당 · <code>{교사회기도}</code> 교사회 기도 · <code>{헌금색}</code> 헌금 색상 · <code>{헌금담당}</code> 헌금 담당자 · <code>{공과}</code> 공과 제목 · <code>{정리}</code> 정리조 · <code>{3부}</code> 3부 행사 · <code>{절기}</code> 절기
+        </div>
+
+        <div class="tpl-row">
+          <span class="tpl-label">제목 형식</span>
+          <div>
+            <input type="text" id="tpl_title" oninput="saveTpl();updatePreview()">
+            <div class="tpl-hint">예) 🐒{연도}년 {월}월 {일}일 영아부 예배 안내</div>
+          </div>
+        </div>
+
+        <div style="font-size:12px;font-weight:600;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;padding-top:4px">표시 항목 순서 &amp; 라벨</div>
+
+        <div id="tplFields" style="display:flex;flex-direction:column;gap:8px"></div>
+
+        <div class="tpl-row">
+          <span class="tpl-label">월간공지 제목</span>
+          <input type="text" id="tpl_monthly_title" oninput="saveTpl();updatePreview()">
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-label">월간공지 행 형식</span>
+          <div>
+            <input type="text" id="tpl_monthly_row" oninput="saveTpl();updatePreview()">
+            <div class="tpl-hint">예) {일}일 {주차} ({기도}) : {3부}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ntpl">
+      <div class="ntpl-head">
+        <h3>미리보기 (10월 25일 기준)</h3>
+        <button class="btn btn-g btn-s" onclick="updatePreview()">새로고침</button>
+      </div>
+      <div style="padding:16px 18px">
+        <div class="preview-box" id="previewBox"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ HWP 업로드 모달 ═══ -->
+<div class="modal-bg" id="hwpModal">
+  <div class="modal">
+    <div class="mh">
+      <h3>HWP 파일로 일정 업데이트</h3>
+      <button class="mc" onclick="closeModal('hwpModal')" aria-label="닫기">×</button>
+    </div>
+    <div class="mb">
+      <div class="hbox">
+        <strong>HWP 파일 업로드 안내</strong>
+        이 앱과 동일한 표 구조의 HWP 파일을 업로드하면 일정 데이터를 자동으로 파싱하여 업데이트합니다.<br>
+        파싱 결과를 확인 후 적용하세요.
+      </div>
+      <div class="upzone" id="upzone"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="handleDrop(event)"
+        onclick="document.getElementById('hwpFile').click()">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <strong>클릭하거나 파일을 드래그</strong>
+        <p>.hwp 파일 지원</p>
+        <input id="hwpFile" type="file" accept=".hwp" style="display:none" onchange="handleHwpFile(event)">
+      </div>
+      <div id="hwpStatus" style="display:none"></div>
+      <div id="hwpPreview" style="display:none">
+        <div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:7px">파싱된 데이터 미리보기</div>
+        <textarea id="hwpRaw" style="height:160px;font-size:12px;font-family:monospace" readonly></textarea>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-g" onclick="closeModal('hwpModal')">닫기</button>
+      <button class="btn btn-p" id="hwpApplyBtn" onclick="applyHwpData()" style="display:none">파싱 데이터 적용</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUP=['¹','²','³','⁴','⁵'];
+const MN=['','1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+/* ── 기본 데이터 ── */
+const DEFAULT_S={
+  1:{hj:"보라 (조혜숙) / C조 (파랑1,2)",w:[
+    {d:4, h:"신년",   l:"별 보러 가자 (고후 4:18)",                  e:"반 편성",       p:"김명훈",  tp:""},
+    {d:11,h:"",       l:"순종이 곧 예배입니다 (삼상 15:22)",           e:"1,2월 생일축하",p:"박유미",  tp:""},
+    {d:18,h:"",       l:"14과 베드로가 고넬료에게 복음을 전했어요.",    e:"신체활동",      p:"장미화",  tp:""},
+    {d:25,h:"",       l:"15과 하나님이 사울을 세우셨어요.",             e:"성구암송",      p:"조혜숙",  tp:""},
+  ]},
+  2:{hj:"파랑2 (김정임) / B조 (초록,노랑)",w:[
+    {d:1, h:"",    l:"16과 안디옥 교회가 세워졌어요.",           e:"새찬양 배우기", p:"정윤재",  tp:"김정임"},
+    {d:8, h:"",    l:"17과 사울과 바나바를 보내셨어요.",          e:"공과체험(A)",   p:"신온리",  tp:"박복이"},
+    {d:15,h:"설날", l:"18과 바울은 감옥에서도 복음을 전했어요.", e:"명절",          p:"유나,유건",tp:"유정일"},
+    {d:22,h:"",    l:"19과 에베소 교회가 든든히 세워졌어요.",    e:"성구암송",      p:"오하임",  tp:"박현정"},
+  ]},
+  3:{hj:"파랑1 (신영하) / A조 (주황,빨강)",w:[
+    {d:1, h:"",        l:"20과 바울이 로마에서 복음을 전했어요.",    e:"3,4월 생일축하",p:"최승아",  tp:"강지선"},
+    {d:8, h:"",        l:"21과 하나님이 바르다고 여겨주세요.",       e:"신체활동",      p:"오서준",  tp:"신혜연"},
+    {d:15,h:"",        l:"22과 우리는 빛의 자녀예요.",               e:"요리활동",      p:"하빈,하겸",tp:"김여진"},
+    {d:22,h:"",        l:"23과 우리는 하나님의 사랑을 받았어요.",    e:"공과체험(B)",   p:"오유진",  tp:"신영하"},
+    {d:29,h:"종려주일", l:"24과 예수님은 다시 오세요.",              e:"성구암송",      p:"심유하",  tp:"노규훈"},
+  ]},
+  4:{hj:"초록 (박복이) / C조 (파랑1,2)",w:[
+    {d:5, h:"부활주일",l:"부활주일 설교",                        e:"부활절",      p:"박지은",  tp:"최승희"},
+    {d:12,h:"",        l:"1과 최고예요! 하나님이 만드신 세상",   e:"재능기부",    p:"예담,예은",tp:"김명훈"},
+    {d:19,h:"",        l:"2과 특별해요! 하나님을 닮은 나",       e:"공과체험(C)", p:"오예온",  tp:"박유미"},
+    {d:26,h:"",        l:"3과 불순종은 안 돼요!",                e:"성구암송",    p:"엘림,서엘",tp:"장미화"},
+  ]},
+  5:{hj:"노랑 (신혜연) / B조 (빨강,노랑)",w:[
+    {d:3, h:"어린이주일",l:"어린이 주일 주제 설교",   e:"5,6월 생일축하 신체활동",   p:"노지아",  tp:"조혜숙"},
+    {d:10,h:"어버이주일",l:"어버이 주일 주제 설교",   e:"어버이주일행사 야외예배",   p:"이도윤",  tp:"김정임"},
+    {d:17,h:"",          l:"4과 점점 커지는 죄",       e:"재능기부(부장)",            p:"유주,유안",tp:"박복이"},
+    {d:24,h:"",          l:"5과 구원의 방주가 둥둥!",  e:"공과체험(방주)",            p:"이유정",  tp:"유정일"},
+    {d:31,h:"",          l:"6과 무지개 약속",          e:"성구암송",                  p:"박하온",  tp:"박현정"},
+  ]},
+  6:{hj:"주황 (장미화) / A조 (주황,초록)",w:[
+    {d:7, h:"",l:"7과 우리 하나님이 가장 높은 하나님!",  e:"미니올림픽",   p:"시우,현우",tp:"강지선"},
+    {d:14,h:"",l:"8과 하나님의 약속을 믿고 떠나요.",     e:"공과체험(A)",  p:"박유주",  tp:"신혜연"},
+    {d:21,h:"",l:"9과 별처럼 많은 자손을 약속하셨어요.", e:"꽃꽂이",       p:"노시훈",  tp:"김여진"},
+    {d:28,h:"",l:"10과 아브라함이 얻은 웃음, 이삭!",    e:"성구암송",     p:"정윤재",  tp:"신영하"},
+  ]},
+  7:{hj:"보라 (조혜숙) / C조 (파랑1,2)",w:[
+    {d:5, h:"맥추감사",l:"영아부 여름성경학교",               e:"성경학교연계1",  p:"신온리",  tp:"노규훈"},
+    {d:12,h:"",        l:"영아부 여름성경학교(11일_성극)",     e:"성경학교연계2",  p:"유나,유건",tp:"최승희"},
+    {d:19,h:"",        l:"11과 무엇이든 순종해요.",           e:"7,8월 생일축하", p:"오하임",  tp:"김명훈"},
+    {d:26,h:"",        l:"12과 야곱! 바로 너야",              e:"성구암송",       p:"최승아",  tp:"박유미"},
+  ]},
+  8:{hj:"파랑2 (김정임) / B조 (초록,노랑)",w:[
+    {d:2, h:"",l:"13과 괜찮아, 야곱! 하나님이 지켜주실 거야",    e:"반별 찬양대회",p:"오서준",  tp:"장미화"},
+    {d:9, h:"",l:"14과 무엇이든 순종해요.",                       e:"재능기부",     p:"하빈,하겸",tp:"조혜숙"},
+    {d:16,h:"",l:"15과 꿈꾸는 요셉! 하나님의 계획이 있어",       e:"미술활동",     p:"오유진",  tp:"김정임"},
+    {d:23,h:"",l:"16과 힘을 내, 요셉! 하나님이 함께하실 거야",   e:"공과체험(B)",  p:"심유하",  tp:"박복이"},
+    {d:30,h:"",l:"17과 요셉! 선하게 이루어진 하나님의 계획이야", e:"성구암송",     p:"박지은",  tp:"유정일"},
+  ]},
+  9:{hj:"파랑1 (신영하) / A조 (주황,빨강)",w:[
+    {d:6, h:"",l:"18과 약속대로 민족이 된 열두 아들",  e:"9,10월 생일축하",p:"예담,예은",tp:"박현정"},
+    {d:13,h:"",l:"19과 하나님이 준비하신 아기",         e:"요리활동",       p:"오예온",  tp:"강지선"},
+    {d:20,h:"",l:"20과 누가 참하나님일까?",             e:"공과체험(C)",    p:"엘림,서엘",tp:"신혜연"},
+    {d:27,h:"",l:"21과 하나님의 놀라운 능력",          e:"성구암송",       p:"노지아",  tp:"김여진"},
+  ]},
+  10:{hj:"초록 (박복이) / C조 (파랑1,2)",w:[
+    {d:4, h:"추석",    l:"22과 하나님의 계명을 지켜요.",   e:"명절놀이",      p:"이도윤",  tp:"신영하"},
+    {d:11,h:"",         l:"23과 하나님을 성막에서 만나요.", e:"초대장 만들기", p:"유주,유안",tp:"노규훈"},
+    {d:18,h:"전도축제", l:"전도 축제 말씀",               e:"가을음악회",    p:"이유정",  tp:"최승희"},
+    {d:25,h:"",         l:"24과 예수님 때문에 거룩해요.",  e:"성구암송",      p:"박하온",  tp:"김명훈"},
+  ]},
+  11:{hj:"노랑 (신혜연) / B조 (초록,노랑)",w:[
+    {d:1, h:"",        l:"1과 가나안 땅을 살펴보고 왔어요.", e:"11,12월생일축하",p:"시우,현우",tp:"박유미"},
+    {d:8, h:"",        l:"2과 하나님의 말씀을 지켜요.",      e:"꽃꽂이",         p:"박유주",  tp:"장미화"},
+    {d:15,h:"추수감사", l:"추수감사절 주제 설교",            e:"추수감사절행사", p:"노시훈",  tp:"조혜숙"},
+    {d:22,h:"",        l:"3과 요단 강을 건넜어요.",          e:"공과체험(A)",    p:"정윤재",  tp:"김정임"},
+    {d:29,h:"",        l:"4과 여리고 성이 무너졌어요.",      e:"성구암송",       p:"신온리",  tp:"박복이"},
+  ]},
+  12:{hj:"주황 (장미화) / A조 (주황,빨강)",w:[
+    {d:6, h:"",        l:"5과 하나님만 섬길 것을 약속했어요.", e:"성탄만들기",     p:"유나,유건",tp:"유정일"},
+    {d:13,h:"",        l:"6과 하나님이 구원하세요.",           e:"성탄찬양배우기", p:"오하임",  tp:"박현정"},
+    {d:20,h:"성탄",    l:"성탄절 주제 설교",                  e:"성탄파티",       p:"최승아",  tp:"강지선"},
+    {d:27,h:"송구영신", l:"송구영신 주제 설교",               e:"수료식",         p:"김명훈",  tp:""},
+  ]},
+};
+
+const DEFAULT_TPL={
+  title:"🐒{연도}년 {월}월 {일}일 영아부 예배 안내",
+  fields:[
+    {key:"기도",     label:"기도",       var:"{기도}",      on:true},
+    {key:"교사회기도",label:"교사회 기도",var:"{교사회기도}", on:true},
+    {key:"헌금",     label:"헌금",       var:"{헌금색}(담당 : {헌금담당})", on:true},
+    {key:"공과",     label:"공과",       var:"{공과}",      on:true},
+    {key:"정리",     label:"정리",       var:"{정리}",      on:true},
+    {key:"3부",      label:"3부",        var:"{3부}",       on:true},
+  ],
+  monthly_title:"📢{월}월 월간 3부 순서 (예정)",
+  monthly_row:"{일}일 {주차} ({기도}) : {3부}",
+};
+
+let S=loadS(), TPL=loadTpl(), editMonth=1, parsedHwp=null;
+
+function loadS(){try{const v=localStorage.getItem('yab26s');if(v)return JSON.parse(v);}catch{}return JSON.parse(JSON.stringify(DEFAULT_S));}
+function saveS(){try{localStorage.setItem('yab26s',JSON.stringify(S));}catch{}}
+function loadTpl(){try{const v=localStorage.getItem('yab26tpl');if(v)return JSON.parse(v);}catch{}return JSON.parse(JSON.stringify(DEFAULT_TPL));}
+function saveTpl(){
+  TPL.title=document.getElementById('tpl_title')?.value||TPL.title;
+  TPL.monthly_title=document.getElementById('tpl_monthly_title')?.value||TPL.monthly_title;
+  TPL.monthly_row=document.getElementById('tpl_monthly_row')?.value||TPL.monthly_row;
+  document.querySelectorAll('.tpl-field-row').forEach(row=>{
+    const k=row.dataset.key, lbl=row.querySelector('.tf-label'), v=row.querySelector('.tf-var'), cb=row.querySelector('.tf-on');
+    const f=TPL.fields.find(f=>f.key===k);
+    if(f){if(lbl)f.label=lbl.value;if(v)f.var=v.value;if(cb)f.on=cb.checked;}
+  });
+  try{localStorage.setItem('yab26tpl',JSON.stringify(TPL));}catch{}
+}
+
+function parseHJ(hj){
+  const[left='',right='']=(hj||'').split('/').map(s=>s.trim());
+  const m=left.match(/^(.+?)\s*\(([^)]+)\)$/);
+  return{color:m?m[1].trim():left,person:m?m[2].trim():'',jeong:right};
+}
+
+/* ── 탭 전환 ── */
+function switchTab(name,el){
+  ['guide','edit','notice'].forEach(n=>{
+    const t=document.getElementById('tab-'+n);
+    if(t)t.style.display=n===name?'flex':'none';
+  });
+  document.querySelectorAll('.tab').forEach(t=>{t.classList.remove('on');t.removeAttribute('aria-selected');});
+  el.classList.add('on');el.setAttribute('aria-selected','true');
+  if(name==='edit')renderEdit(editMonth);
+  if(name==='notice')renderNoticeTpl();
+}
+
+/* ── 날짜 셀렉트 구성 ── */
+function buildSelect(){
+  const sel=document.getElementById('dateSelect');
+  const prev=sel.value;
+  sel.innerHTML='<option value="">— 날짜를 선택하세요 —</option>';
+  for(const[m,md]of Object.entries(S)){
+    const og=document.createElement('optgroup');
+    og.label=`── ${MN[+m]} ──`;
+    for(const wk of md.w){
+      const op=document.createElement('option');
+      op.value=`${m}-${wk.d}`;
+      op.textContent=`2026년 ${m}월 ${wk.d}일${wk.h?' ['+wk.h+']':''}`;
+      og.appendChild(op);
+    }
+    sel.appendChild(og);
+  }
+  if(prev)sel.value=prev;
+}
+
+function onDate(){const v=document.getElementById('dateSelect').value;if(v)renderGuide(v);}
+function refresh(){const v=document.getElementById('dateSelect').value;if(v)renderGuide(v);}
+
+/* ── 안내문 생성 ── */
+function fillTpl(str,vars){return str.replace(/\{([^}]+)\}/g,(_,k)=>vars[k]??'');}
+
+function renderGuide(val){
+  const[ms,ds]=val.split('-');
+  const m=+ms,d=+ds,md=S[m];
+  if(!md)return;
+  const wk=md.w.find(w=>w.d===d);
+  if(!wk)return;
+  const wi=md.w.indexOf(wk);
+  const{color,person,jeong}=parseHJ(md.hj);
+  const notice=document.getElementById('noticeInput').value.trim();
+
+  const vars={연도:2026,월:m,일:d,기도:wk.p||'—',교사회기도:wk.tp||'—',헌금색:color,헌금담당:person,공과:wk.l||'—',정리:jeong||'—','3부':wk.e||'—',절기:wk.h};
+  document.getElementById('pill').textContent=`2026년 ${m}월 ${d}일 (${SUP[wi]}주)`;
+  document.getElementById('ctitle').textContent=fillTpl(TPL.title,vars);
+
+  const ht=document.getElementById('htag');
+  if(wk.h){ht.textContent=wk.h;ht.style.display='inline-block';}else{ht.style.display='none';}
+
+  const ra=document.getElementById('rows');
+  ra.innerHTML='';
+  TPL.fields.filter(f=>f.on).forEach(f=>{
+    const div=document.createElement('div');div.className='row';
+    div.innerHTML=`<span class="rl">${f.label}</span><span class="rv">${fillTpl(f.var,vars)}</span>`;
+    ra.appendChild(div);
+  });
+
+  const nb=document.getElementById('nb');
+  if(notice){document.getElementById('nbb').textContent=notice;nb.style.display='block';}
+  else{nb.style.display='none';}
+
+  renderMonthly(m,wi,vars);
+  buildOutput(m,d,wk,md,wi,vars,notice);
+  document.getElementById('gEmpty').style.display='none';
+  document.getElementById('gOut').style.display='flex';
+}
+
+function renderMonthly(m,ai,vars){
+  document.getElementById('mtitle').textContent=fillTpl(TPL.monthly_title,{월:m});
+  const c=document.getElementById('mrows');c.innerHTML='';
+  S[m].w.forEach((wk,i)=>{
+    const rv={...vars,일:wk.d,기도:wk.p,교사회기도:wk.tp,'3부':wk.e,주차:SUP[i]||i+1+'주'};
+    const div=document.createElement('div');
+    div.className='mrow'+(i===ai?' on':'');
+    div.innerHTML=`<span class="md">${wk.d}일 ${SUP[i]||i+1}주</span><span class="mi"><strong>${wk.e||'—'}</strong>${wk.p?`<small>${wk.p}${wk.tp?' / '+wk.tp:''}</small>`:''}</span>`;
+    c.appendChild(div);
+  });
+}
+
+function buildOutput(m,d,wk,md,wi,vars,notice){
+  let txt=fillTpl(TPL.title,vars);
+  if(wk.h)txt+=` (${wk.h})`;
+  txt+='\n\n';
+  TPL.fields.filter(f=>f.on).forEach(f=>{txt+=`${f.label} : ${fillTpl(f.var,vars)}\n`;});
+  if(notice)txt+=`\n✔️ ${notice}\n`;
+  txt+=`\n${fillTpl(TPL.monthly_title,{월:m})}\n`;
+  md.w.forEach((w,i)=>{
+    const rv={...vars,일:w.d,기도:w.p,교사회기도:w.tp,'3부':w.e,주차:SUP[i]||i+1+'주'};
+    txt+=fillTpl(TPL.monthly_row,rv)+'\n';
+  });
+  document.getElementById('otext').textContent=txt;
+}
+
+async function copyText(){
+  const text=document.getElementById('otext').textContent;
+  const btn=document.getElementById('copyBtn');
+  try{await navigator.clipboard.writeText(text);}
+  catch{const ta=Object.assign(document.createElement('textarea'),{value:text,style:'position:fixed;opacity:0'});document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}
+  btn.textContent='완료 ✓';setTimeout(()=>{btn.textContent='복사';},2000);
+}
+
+function resetGuide(){
+  document.getElementById('dateSelect').value='';
+  document.getElementById('noticeInput').value='';
+  document.getElementById('gEmpty').style.display='flex';
+  document.getElementById('gOut').style.display='none';
+}
+
+/* ── 일정 편집 ── */
+function buildMtabs(){
+  const c=document.getElementById('mtabs');c.innerHTML='';
+  for(let m=1;m<=12;m++){
+    const b=document.createElement('button');b.className='mtab'+(m===editMonth?' on':'');
+    b.textContent=MN[m];b.onclick=()=>{editMonth=m;renderEdit(m);};c.appendChild(b);
+  }
+}
+
+function renderEdit(m){
+  buildMtabs();
+  const md=S[m];const c=document.getElementById('ec');c.innerHTML='';
+
+  const meta=document.createElement('div');meta.className='mmeta';
+  meta.innerHTML=`<h4>${m}월 헌금/정리 담당</h4>
+    <div class="fi"><label class="lbl">색(담당) / 정리조 형식</label>
+    <input type="text" value="${md.hj}" placeholder="예) 초록 (박복이) / C조 (파랑1,2)"
+      oninput="S[${m}].hj=this.value;saveS();refreshIfOpen(${m})"></div>`;
+  c.appendChild(meta);
+
+  md.w.forEach((wk,i)=>{
+    const card=document.createElement('div');card.className='ecard';
+    card.innerHTML=`
+      <div class="ech">
+        <h4>${m}월 ${wk.d}일 (${SUP[i]||i+1}주차)</h4>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-g btn-s" onclick="addWeek(${m},${i})">+ 주차 추가</button>
+          ${md.w.length>1?`<button class="btn btn-d btn-s" onclick="delWeek(${m},${i})">삭제</button>`:''}
+        </div>
+      </div>
+      <div class="ecb">
+        <div class="frow f4">
+          <div class="fi"><label class="lbl">날짜(일)</label>
+            <input type="number" value="${wk.d}" min="1" max="31"
+              onchange="S[${m}].w[${i}].d=+this.value;saveS();buildSelect();renderEdit(${m})"></div>
+          <div class="fi"><label class="lbl">절기</label>
+            <input type="text" value="${wk.h}" placeholder="예) 부활주일"
+              oninput="S[${m}].w[${i}].h=this.value;saveS();buildSelect();refreshIfOpen(${m})"></div>
+          <div class="fi"><label class="lbl">기도</label>
+            <input type="text" value="${wk.p}" placeholder="기도 담당자"
+              oninput="S[${m}].w[${i}].p=this.value;saveS();refreshIfOpen(${m})"></div>
+          <div class="fi"><label class="lbl">교사회 기도</label>
+            <input type="text" value="${wk.tp||''}" placeholder="교사회 기도 담당자"
+              oninput="S[${m}].w[${i}].tp=this.value;saveS();refreshIfOpen(${m})"></div>
+        </div>
+        <div class="frow f2">
+          <div class="fi"><label class="lbl">수업 공과</label>
+            <input type="text" value="${wk.l}" placeholder="공과 제목"
+              oninput="S[${m}].w[${i}].l=this.value;saveS();refreshIfOpen(${m})"></div>
+          <div class="fi"><label class="lbl">3부 행사</label>
+            <input type="text" value="${wk.e}" placeholder="예) 성구암송"
+              oninput="S[${m}].w[${i}].e=this.value;saveS();refreshIfOpen(${m})"></div>
+        </div>
+      </div>`;
+    c.appendChild(card);
+  });
+
+  const ab=document.createElement('button');ab.className='btn btn-g btn-w';ab.textContent='+ 이 달에 주차 추가';
+  ab.onclick=()=>addWeek(m,md.w.length-1);c.appendChild(ab);
+}
+
+function addWeek(m,ai){
+  const prev=S[m].w[ai];
+  S[m].w.splice(ai+1,0,{d:Math.min((prev.d||1)+7,31),h:'',l:'',e:'',p:'',tp:''});
+  saveS();buildSelect();renderEdit(m);showToast('주차 추가됨');
+}
+function delWeek(m,i){
+  if(S[m].w.length<=1)return;
+  S[m].w.splice(i,1);saveS();buildSelect();renderEdit(m);showToast('주차 삭제됨');
+}
+function refreshIfOpen(m){
+  const v=document.getElementById('dateSelect').value;
+  if(v&&v.startsWith(m+'-'))renderGuide(v);
+}
+function restoreDefault(){
+  if(!confirm('초기 데이터(HWP 원본)로 복원하시겠습니까? 수정 내용이 모두 삭제됩니다.'))return;
+  S=JSON.parse(JSON.stringify(DEFAULT_S));saveS();buildSelect();renderEdit(editMonth);showToast('복원 완료');
+}
+
+/* ── 공지 양식 편집 ── */
+function renderNoticeTpl(){
+  document.getElementById('tpl_title').value=TPL.title;
+  document.getElementById('tpl_monthly_title').value=TPL.monthly_title;
+  document.getElementById('tpl_monthly_row').value=TPL.monthly_row;
+
+  const fc=document.getElementById('tplFields');fc.innerHTML='';
+  TPL.fields.forEach((f,i)=>{
+    const div=document.createElement('div');
+    div.className='tpl-field-row';div.dataset.key=f.key;
+    div.style.cssText='display:grid;grid-template-columns:28px 80px 1fr 1fr;gap:8px;align-items:center';
+    div.innerHTML=`
+      <input type="checkbox" class="tf-on" ${f.on?'checked':''} onchange="saveTpl();updatePreview()">
+      <input type="text" class="tf-label" value="${f.label}" placeholder="라벨" oninput="saveTpl();updatePreview()">
+      <input type="text" class="tf-var"   value="${f.var}"   placeholder="값 형식 (변수 사용)" oninput="saveTpl();updatePreview()">
+      <span style="font-size:11px;color:var(--t3)">${f.key}</span>`;
+    fc.appendChild(div);
+  });
+  updatePreview();
+}
+
+function updatePreview(){
+  saveTpl();
+  const m=10,d=25;
+  const md=S[m];const wk=md?.w.find(w=>w.d===d)||md?.w[md.w.length-1];
+  if(!wk)return;
+  const wi=md.w.indexOf(wk);
+  const{color,person,jeong}=parseHJ(md.hj);
+  const vars={연도:2026,월:m,일:d,기도:wk.p||'—',교사회기도:wk.tp||'—',헌금색:color,헌금담당:person,공과:wk.l||'—',정리:jeong||'—','3부':wk.e||'—',절기:wk.h};
+
+  let txt=fillTpl(TPL.title,vars);
+  if(wk.h)txt+=` (${wk.h})`;txt+='\n\n';
+  TPL.fields.filter(f=>f.on).forEach(f=>{txt+=`${f.label} : ${fillTpl(f.var,vars)}\n`;});
+  txt+=`\n✔️ (공지 예시)\n`;
+  txt+=`\n${fillTpl(TPL.monthly_title,{월:m})}\n`;
+  md.w.forEach((w,i)=>{
+    const rv={...vars,일:w.d,기도:w.p,교사회기도:w.tp,'3부':w.e,주차:SUP[i]||i+1+'주'};
+    txt+=fillTpl(TPL.monthly_row,rv)+'\n';
+  });
+  document.getElementById('previewBox').textContent=txt;
+}
+
+function resetTpl(){
+  if(!confirm('공지 양식을 기본값으로 되돌리겠습니까?'))return;
+  TPL=JSON.parse(JSON.stringify(DEFAULT_TPL));
+  try{localStorage.removeItem('yab26tpl');}catch{}
+  renderNoticeTpl();showToast('양식 복원 완료');
+}
+
+/* ── HWP 업로드 & 파싱 ── */
+function handleDrop(e){
+  e.preventDefault();document.getElementById('upzone').classList.remove('drag');
+  const f=e.dataTransfer.files[0];if(f?.name.endsWith('.hwp'))readHwpFile(f);
+}
+function handleHwpFile(e){const f=e.target.files[0];if(f)readHwpFile(f);e.target.value='';}
+
+function readHwpFile(file){
+  const r=new FileReader();
+  r.onload=ev=>processHwp(ev.target.result,file.name);
+  r.readAsArrayBuffer(file);
+}
+
+function processHwp(buf,fname){
+  const status=document.getElementById('hwpStatus');
+  const rawEl=document.getElementById('hwpRaw');
+  const preview=document.getElementById('hwpPreview');
+  const applyBtn=document.getElementById('hwpApplyBtn');
+  status.style.display='block';preview.style.display='none';applyBtn.style.display='none';parsedHwp=null;
+
+  try{
+    const bytes=new Uint8Array(buf);
+    const sig=[0xD0,0xCF,0x11,0xE0,0xA1,0xB1,0x1A,0xE1];
+    if(!sig.every((b,i)=>bytes[i]===b)){
+      status.className='parse-result err';status.textContent='❌ HWP 파일을 인식할 수 없습니다 (OLE 서명 불일치)';return;
+    }
+
+    const texts=extractHwpTokens(bytes);
+    if(!texts.length){
+      status.className='parse-result err';status.textContent='❌ 텍스트를 추출하지 못했습니다.';return;
+    }
+
+    const parsed=parseHwpSchedule(texts);
+    if(!parsed||Object.keys(parsed).length<3){
+      status.className='parse-result err';
+      status.textContent='⚠️ 일정 구조를 인식하지 못했습니다. 추출된 텍스트를 확인하고 수동으로 편집하세요.';
+      rawEl.value=texts.join('\n');preview.style.display='block';return;
+    }
+
+    parsedHwp=parsed;
+    const months=Object.keys(parsed).length;
+    const weeks=Object.values(parsed).reduce((s,m)=>s+m.w.length,0);
+    status.className='parse-result ok';
+    status.textContent=`✅ 파싱 성공: ${fname} → ${months}개월 ${weeks}주차 데이터 추출`;
+    rawEl.value=texts.join('\n');preview.style.display='block';applyBtn.style.display='inline-flex';
+  }catch(ex){
+    status.className='parse-result err';status.textContent='❌ 파싱 오류: '+ex.message;
+  }
+}
+
+function extractHwpTokens(bytes){
+  const FAT_OFF=76,DIFAT_OFF=76+4*109;
+  const sectorSize=1<<(bytes[30]|(bytes[31]<<8));
+  function readSector(n){const off=(n+1)*sectorSize;return bytes.slice(off,off+sectorSize);}
+
+  function readFAT(){
+    const count=bytes[44]|(bytes[45]<<8)|(bytes[46]<<16)|(bytes[47]<<24);
+    const fat=[];
+    for(let i=0;i<Math.min(count,109);i++){
+      const s=bytes[FAT_OFF+i*4]|(bytes[FAT_OFF+i*4+1]<<8)|(bytes[FAT_OFF+i*4+2]<<16)|(bytes[FAT_OFF+i*4+3]<<24);
+      if(s<0||s>0xFFFFFFFA)continue;
+      const sec=readSector(s);
+      for(let j=0;j<sectorSize/4;j++)fat.push(sec[j*4]|(sec[j*4+1]<<8)|(sec[j*4+2]<<16)|(sec[j*4+3]<<24));
+    }
+    return fat;
+  }
+
+  function chainSectors(start,fat){
+    const chain=[];let cur=start;
+    while(cur>=0&&cur<0xFFFFFFFA&&chain.length<4096){chain.push(cur);cur=fat[cur]||0xFFFFFFFE;}
+    return chain;
+  }
+
+  function findDirEntry(name,rootSec,fat){
+    const chain=chainSectors(rootSec,fat);
+    for(const s of chain){
+      const sec=readSector(s);
+      for(let i=0;i<4;i++){
+        const base=i*128;
+        const nlen=sec[base+64]|(sec[base+65]<<8);
+        if(nlen<2||nlen>64)continue;
+        let ename='';
+        for(let j=0;j<(nlen-2)/2;j++)ename+=String.fromCharCode(sec[base+j*2]|(sec[base+j*2+1]<<8));
+        if(ename===name){
+          const start=sec[base+116]|(sec[base+117]<<8)|(sec[base+118]<<16)|(sec[base+119]<<24);
+          const size=sec[base+120]|(sec[base+121]<<8)|(sec[base+122]<<16)|(sec[base+123]<<24);
+          return{start,size};
+        }
+      }
+    }
+    return null;
+  }
+
+  try{
+    const fat=readFAT();
+    const rootStart=bytes[48]|(bytes[49]<<8)|(bytes[52]<<16)|(bytes[53]<<24)||0;
+
+    const bodyEntry=findDirEntry('BodyText',rootStart,fat)||findDirEntry('Section0',rootStart,fat);
+    let rawBytes=null;
+
+    if(bodyEntry){
+      const sec0Entry=findDirEntry('Section0',rootStart,fat);
+      const entry=sec0Entry||bodyEntry;
+      const chain=chainSectors(entry.start,fat);
+      const parts=chain.map(s=>readSector(s));
+      const total=parts.reduce((a,b)=>a+b.length,0);
+      const merged=new Uint8Array(total);
+      let off=0;parts.forEach(p=>{merged.set(p,off);off+=p.length;});
+      rawBytes=merged.slice(0,entry.size);
+    }
+
+    if(!rawBytes){rawBytes=bytes;}
+
+    let decompressed;
+    try{
+      const ds=new DecompressionStream('deflate-raw');
+      const writer=ds.writable.getWriter();const reader=ds.readable.getReader();
+      writer.write(rawBytes);writer.close();
+      const chunks=[];
+      while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);}
+      decompressed=new Uint8Array(chunks.reduce((a,b)=>a+b.length,0));
+      let p=0;chunks.forEach(c=>{decompressed.set(c,p);p+=c.length;});
+    }catch{decompressed=rawBytes;}
+
+    return extractKorean(decompressed);
+  }catch{
+    return extractKorean(bytes);
+  }
+}
+
+function extractKorean(bytes){
+  const results=[];
+  let i=0;
+  while(i+1<bytes.length){
+    const chunk=[];let j=i;
+    while(j+1<bytes.length){
+      const v=bytes[j]|(bytes[j+1]<<8);
+      if((v>=0xAC00&&v<=0xD7A3)||(v>=0x0020&&v<=0x007E)||(v>=0x3130&&v<=0x318F)||(v>=0xFF01&&v<=0xFF5E)){
+        chunk.push(v);j+=2;
+      }else break;
+    }
+    if(chunk.length>=2){
+      const arr=new Uint8Array(chunk.flatMap(v=>[v&0xFF,(v>>8)&0xFF]));
+      const s=new TextDecoder('utf-16-le',{fatal:false}).decode(arr).trim();
+      if(s.length>=2&&/[가-힣]/.test(s)){results.push(s);i=j;}else{i+=2;}
+    }else{i+=2;}
+  }
+  const seen=new Set();
+  return results.filter(s=>{if(seen.has(s))return false;seen.add(s);return true;});
+}
+
+function parseHwpSchedule(tokens){
+  const data={};
+  let i=0;
+  while(i<tokens.length){
+    const t=tokens[i];
+    const m=parseInt(t);
+    if(m>=1&&m<=12&&!data[m]){
+      let hjParts=[];let j=i+1;
+      while(j<tokens.length&&parseInt(tokens[j])!==m+1&&hjParts.length<20){
+        const tk=tokens[j];
+        if(['/',')','('].includes(tk)||tk.includes('조')||tk.includes('파랑')||tk.includes('초록')||tk.includes('노랑')||tk.includes('보라')||tk.includes('주황')){
+          hjParts.push(tk);
+        }
+        j++;
+        if(hjParts.length>0&&hjParts.join('').includes('/')&&hjParts.join('').includes('조'))break;
+      }
+      const hj=hjParts.join(' ').replace(/\s+/g,' ').trim();
+
+      const weeks=[];let k=i+1;
+      while(k<tokens.length){
+        const day=parseInt(tokens[k]);
+        if(day>=1&&day<=31&&k+2<tokens.length){
+          let holiday='',lesson='',event='',prayer='',tp='',kk=k+1;
+          if(kk<tokens.length&&!/^\d+$/.test(tokens[kk])&&tokens[kk].length<10&&!tokens[kk].includes('과')&&!tokens[kk].includes('설교')&&!tokens[kk].includes('주일')){
+            const ht=tokens[kk];
+            if(['신년','설날','추석','부활','종려','맥추','어린이','어버이','추수','성탄','송구','전도','종려주일','부활주일','맥추감사','어린이주일','어버이주일','추수감사','전도축제'].some(kw=>ht.includes(kw))){
+              holiday=ht;kk++;
+              if(kk<tokens.length&&tokens[kk]==='주일'){holiday+='주일';kk++;}
+              if(kk<tokens.length&&tokens[kk]==='감사'){holiday+='감사';kk++;}
+              if(kk<tokens.length&&tokens[kk]==='영신'){holiday='송구영신';kk++;}
+              if(kk<tokens.length&&tokens[kk]==='축제'){holiday='전도축제';kk++;}
+            }
+          }
+          if(kk<tokens.length&&(tokens[kk].includes('과')||tokens[kk].includes('설교')||tokens[kk].includes('학교')||tokens[kk].includes('성경'))){lesson=tokens[kk];kk++;}
+          if(kk<tokens.length&&!isPersonName(tokens[kk])&&!parseInt(tokens[kk])){event=tokens[kk];kk++;}
+          if(kk<tokens.length&&isPersonName(tokens[kk])){prayer=tokens[kk];kk++;}
+          if(kk<tokens.length&&isPersonName(tokens[kk])&&!parseInt(tokens[kk])){tp=tokens[kk];kk++;}
+
+          if(lesson||event||prayer)weeks.push({d:day,h:holiday,l:lesson,e:event,p:prayer,tp});
+          k=kk;
+        }else{
+          if(parseInt(tokens[k])===m+1||parseInt(tokens[k])===m+2)break;
+          k++;
+        }
+      }
+      if(weeks.length>0)data[m]={hj,w:weeks};
+    }
+    i++;
+  }
+  return data;
+}
+
+function isPersonName(s){
+  if(!s||s.length<2||s.length>8)return false;
+  if(/\d/.test(s))return false;
+  if(s.includes('과')||s.includes('설교')||s.includes('주일')||s.includes('절기'))return false;
+  return /^[가-힣,]+$/.test(s);
+}
+
+function applyHwpData(){
+  if(!parsedHwp)return;
+  if(!confirm('파싱된 데이터로 현재 일정을 모두 교체하시겠습니까?\n기존 수정 내용이 사라집니다.'))return;
+  S=parsedHwp;saveS();buildSelect();renderEdit(editMonth);
+  closeModal('hwpModal');showToast('✅ HWP 데이터 적용 완료! 일정 편집 탭에서 확인하세요.');
+}
+
+/* ── JSON 내보내기/가져오기 ── */
+function exportJSON(){
+  const blob=new Blob([JSON.stringify({schedule:S,template:TPL},null,2)],{type:'application/json'});
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'영아부_일정_2026.json'});
+  a.click();URL.revokeObjectURL(a.href);
+}
+function importJSON(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const j=JSON.parse(ev.target.result);
+      if(j.schedule){S=j.schedule;saveS();}
+      if(j.template){TPL=j.template;try{localStorage.setItem('yab26tpl',JSON.stringify(TPL));}catch{}}
+      buildSelect();renderEdit(editMonth);showToast('가져오기 완료');
+    }catch{showToast('JSON 형식 오류입니다.');}
+  };r.readAsText(f);e.target.value='';
+}
+
+/* ── 모달 ── */
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id);}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-bg.open').forEach(el=>closeModal(el.id));});
+
+/* ── 토스트 ── */
+let _tt;
+function showToast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+/* ── 초기화 ── */
+buildSelect();
+buildMtabs();
+</script>
+</body>
+</html>
