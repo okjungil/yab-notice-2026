@@ -26,8 +26,8 @@ body{background:var(--bg);color:var(--t1);min-height:100dvh;font-size:16px;line-
 .tb-right{display:flex;gap:6px;flex-wrap:wrap}
 
 /* tabs */
-.tabs{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 18px;display:flex;overflow-x:auto}
-.tab{padding:10px 14px;font-size:13px;font-weight:500;color:var(--t3);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color 120ms,border-color 120ms}
+.tabs{background:var(--sf);border-bottom:1px solid var(--bd);padding:0;display:flex}
+.tab{flex:1;padding:9px 4px;font-size:11.5px;font-weight:500;color:var(--t3);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color 120ms,border-color 120ms;text-align:center;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .tab:hover{color:var(--t2)}
 .tab.on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
 
@@ -169,8 +169,13 @@ textarea{resize:vertical;min-height:72px}
   var AUTH_KEY='yab26auth';
   var GH_TOKEN='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';
   var GH_REPO='okjungil/yab-notice-2026';
-  var ghOk=GH_TOKEN.length>10&&GH_REPO.includes('/');
-  var CONFIG_URL='https://api.github.com/repos/'+GH_REPO+'/contents/data/config.json?ref=data';
+  var RAW_CONFIG='https://raw.githubusercontent.com/'+GH_REPO+'/data/data/config.json';
+
+  /* 항상 DEFAULT_HASH를 기준으로 초기화 (이전 Firebase 잔여값 방지) */
+  var stored=localStorage.getItem(OVERRIDE_KEY);
+  if(!stored||stored.length!==64){
+    localStorage.setItem(OVERRIDE_KEY,DEFAULT_HASH);
+  }
 
   function getHash(){
     return localStorage.getItem(OVERRIDE_KEY)||DEFAULT_HASH;
@@ -215,22 +220,16 @@ textarea{resize:vertical;min-height:72px}
     setTimeout(function(){document.getElementById('pwInput')&&document.getElementById('pwInput').focus();},100);
   }
 
-  if(ghOk){
-    fetch(CONFIG_URL,{headers:{'Authorization':'token '+GH_TOKEN,'Accept':'application/vnd.github.v3+json'}})
-      .then(function(r){return r.ok?r.json():null;})
-      .then(function(d){
-        if(d&&d.content){
-          try{
-            var cfg=JSON.parse(atob(d.content.replace(/\n/g,'')));
-            if(cfg.pwHash&&cfg.pwHash.length===64)localStorage.setItem(OVERRIDE_KEY,cfg.pwHash);
-          }catch{}
-        }
-        if(!trySession())showGate();
-      })
-      .catch(function(){if(!trySession())showGate();});
-  }else{
-    if(!trySession())showGate();
-  }
+  /* raw URL로 config.json 읽기 (토큰 불필요) */
+  fetch(RAW_CONFIG+'?t='+Date.now())
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(cfg){
+      if(cfg&&cfg.pwHash&&cfg.pwHash.length===64){
+        localStorage.setItem(OVERRIDE_KEY,cfg.pwHash);
+      }
+      if(!trySession())showGate();
+    })
+    .catch(function(){if(!trySession())showGate();});
 })();
 </script>
 <div class="toast" id="toast"></div>
@@ -269,7 +268,6 @@ textarea{resize:vertical;min-height:72px}
       <textarea id="noticeInput" placeholder="공지 내용을 입력하세요." oninput="refresh()"></textarea>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px">
-      <button class="btn btn-p btn-w" onclick="onDate()">안내문 생성</button>
       <button class="btn btn-g btn-w" onclick="resetGuide()">초기화</button>
     </div>
     <div style="font-size:12px;color:var(--t3);line-height:1.75;padding-top:12px;border-top:1px solid var(--bd)">
@@ -278,6 +276,16 @@ textarea{resize:vertical;min-height:72px}
       2. 공지 직접 작성 (선택)<br>
       3. 월간 3부 자동 표시<br>
       4. 복사 버튼으로 공유
+    </div>
+    <div id="sideKakao" style="display:none;flex-direction:column;gap:6px">
+      <div class="oh" style="border-bottom:1px solid var(--bd);padding-bottom:8px;margin-bottom:4px">
+        <span style="font-size:12px;font-weight:600;color:var(--t2)">카카오톡 복사용</span>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-g btn-s" id="saveBtn" onclick="saveHistory()">💾 저장</button>
+          <button class="btn btn-p btn-s" id="copyBtn" onclick="copyText()">복사</button>
+        </div>
+      </div>
+      <div class="ob" id="otext" style="font-size:13px;max-height:220px;overflow-y:auto"></div>
     </div>
   </aside>
 
@@ -308,16 +316,6 @@ textarea{resize:vertical;min-height:72px}
           <span class="badge">월간 공지</span>
         </div>
         <div id="mrows"></div>
-      </div>
-      <div class="card">
-        <div class="oh">
-          <span>카카오톡 복사용</span>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-g btn-s" id="saveBtn" onclick="saveHistory()">💾 저장</button>
-            <button class="btn btn-p btn-s" id="copyBtn" onclick="copyText()">복사</button>
-          </div>
-        </div>
-        <div class="ob" id="otext"></div>
       </div>
     </div>
   </main>
@@ -685,6 +683,7 @@ function renderGuide(val){
   buildOutput(m,d,wk,md,wi,vars,notice);
   document.getElementById('gEmpty').style.display='none';
   document.getElementById('gOut').style.display='flex';
+  document.getElementById('sideKakao').style.display='flex';
 }
 
 function renderMonthly(m,ai,vars){
@@ -734,8 +733,10 @@ const GH={
   token:'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',
   repo:'okjungil/yab-notice-2026',
   branch:'data',
-  get ok(){return this.token.length>10&&this.repo.includes('/');},
+  get ok(){return this.repo.includes('/');},
+  get canWrite(){return this.token.length>10;},
   apiBase(){return `https://api.github.com/repos/${this.repo}/contents/data`;},
+  rawBase(){return `https://raw.githubusercontent.com/${this.repo}/${this.branch}/data`;},
   headers(){return {
     'Authorization':`token ${this.token}`,
     'Accept':'application/vnd.github.v3+json',
@@ -751,17 +752,29 @@ let _pollStopped=false;
 async function ghRead(file){
   if(!GH.ok)return null;
   try{
+    /* raw URL로 읽기 - 토큰 없이도 public repo에서 동작 */
+    const r=await fetch(`${GH.rawBase()}/${file}?t=${Date.now()}`);
+    if(!r.ok)return null;
+    return await r.json();
+  }catch(e){console.warn('ghRead err',e);return null;}
+}
+
+/* SHA 가져오기 (쓰기 전 필요) */
+async function ghGetSha(file){
+  if(!GH.canWrite)return null;
+  try{
     const r=await fetch(`${GH.apiBase()}/${file}`,{headers:GH.headers()});
     if(!r.ok)return null;
     const d=await r.json();
     _ghSha[file]=d.sha;
-    return JSON.parse(atob(d.content.replace(/\n/g,'')));
-  }catch(e){console.warn('ghRead err',e);return null;}
+    return d.sha;
+  }catch{return null;}
 }
 
 async function ghWrite(file,data){
-  if(!GH.ok)return;
+  if(!GH.canWrite){console.warn('ghWrite: no token');return;}
   try{
+    if(!_ghSha[file])await ghGetSha(file);
     const content=btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2))));
     const sha=_ghSha[file];
     const body={message:`sync: update ${file}`,content,branch:GH.branch};
@@ -770,26 +783,28 @@ async function ghWrite(file,data){
       method:'PUT',headers:GH.headers(),body:JSON.stringify(body)
     });
     if(r.ok){const d=await r.json();_ghSha[file]=d.content.sha;}
-    else console.warn('ghWrite fail',r.status,await r.text());
+    else{
+      const errText=await r.text();
+      console.warn('ghWrite fail',r.status,errText);
+      if(r.status===409){_ghSha[file]=null;await ghWrite(file,data);}
+    }
   }catch(e){console.warn('ghWrite err',e);}
 }
 
 function ghListen(file,onData){
   if(!GH.ok)return;
   _pollStopped=false;
-  let lastSha='';
+  let lastEtag='';
   async function poll(){
     if(_pollStopped)return;
     try{
-      const r=await fetch(`${GH.apiBase()}/${file}`,{headers:GH.headers()});
-      if(r.ok){
-        const d=await r.json();
-        if(d.sha!==lastSha){
-          lastSha=d.sha;
-          _ghSha[file]=d.sha;
-          const parsed=JSON.parse(atob(d.content.replace(/\n/g,'')));
-          onData(parsed);
-        }
+      /* raw URL로 폴링 - 토큰 불필요 */
+      const r=await fetch(`${GH.rawBase()}/${file}?t=${Date.now()}`);
+      const etag=r.headers.get('etag')||'';
+      if(r.ok&&etag!==lastEtag){
+        lastEtag=etag;
+        const parsed=await r.json();
+        onData(parsed);
       }
     }catch{}
     if(!_pollStopped)_pollTimer=setTimeout(poll,30000);
@@ -857,6 +872,10 @@ function updateSyncBadge(ok){
   const b=document.getElementById('syncBadge');
   if(!b)return;
   if(!GH.ok){b.textContent='오프라인 모드';b.style.background='var(--sf3)';b.style.color='var(--t3)';return;}
+  if(!GH.canWrite){
+    b.textContent='👁️ 읽기 전용 (저장 비활성)';
+    b.style.background='#fef9c3';b.style.color='#854d0e';return;
+  }
   b.textContent=ok?'🟢 동기화 연결됨':'연결 중…';
   b.style.background=ok?'#dcfce7':'var(--ac2)';
   b.style.color=ok?'var(--ok)':'var(--ac)';
@@ -878,7 +897,7 @@ function saveHistory(){
   persistHistory(arr);
   const btn=document.getElementById('saveBtn');
   btn.textContent='저장됨 ✓';setTimeout(()=>{btn.textContent='💾 저장';},2000);
-  showToast(`${label} 안내문이 저장되었습니다.${FB.ok?' (전체 기기 동기화)':''}`);
+  showToast(`${label} 안내문이 저장되었습니다.${GH.canWrite?' (전체 기기 동기화)':GH.ok?' (이 기기만 저장됨)':''}`);
 }
 
 function renderHistory(){
@@ -991,6 +1010,8 @@ function resetGuide(){
   document.getElementById('noticeInput').value='';
   document.getElementById('gEmpty').style.display='flex';
   document.getElementById('gOut').style.display='none';
+  document.getElementById('sideKakao').style.display='none';
+  document.getElementById('otext').textContent='';
 }
 
 /* ── 일정 편집 ── */

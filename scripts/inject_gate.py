@@ -15,8 +15,13 @@ GATE = f"""<script>
   var AUTH_KEY='yab26auth';
   var GH_TOKEN='{GH_TOKEN}';
   var GH_REPO='{GH_REPO}';
-  var ghOk=GH_TOKEN.length>10&&GH_REPO.includes('/');
-  var CONFIG_URL='https://api.github.com/repos/'+GH_REPO+'/contents/data/config.json?ref=data';
+  var RAW_CONFIG='https://raw.githubusercontent.com/'+GH_REPO+'/data/data/config.json';
+
+  /* 항상 DEFAULT_HASH를 기준으로 초기화 (이전 Firebase 잔여값 방지) */
+  var stored=localStorage.getItem(OVERRIDE_KEY);
+  if(!stored||stored.length!==64){{
+    localStorage.setItem(OVERRIDE_KEY,DEFAULT_HASH);
+  }}
 
   function getHash(){{
     return localStorage.getItem(OVERRIDE_KEY)||DEFAULT_HASH;
@@ -61,22 +66,16 @@ GATE = f"""<script>
     setTimeout(function(){{document.getElementById('pwInput')&&document.getElementById('pwInput').focus();}},100);
   }}
 
-  if(ghOk){{
-    fetch(CONFIG_URL,{{headers:{{'Authorization':'token '+GH_TOKEN,'Accept':'application/vnd.github.v3+json'}}}})
-      .then(function(r){{return r.ok?r.json():null;}})
-      .then(function(d){{
-        if(d&&d.content){{
-          try{{
-            var cfg=JSON.parse(atob(d.content.replace(/\\n/g,'')));
-            if(cfg.pwHash&&cfg.pwHash.length===64)localStorage.setItem(OVERRIDE_KEY,cfg.pwHash);
-          }}catch{{}}
-        }}
-        if(!trySession())showGate();
-      }})
-      .catch(function(){{if(!trySession())showGate();}});
-  }}else{{
-    if(!trySession())showGate();
-  }}
+  /* raw URL로 config.json 읽기 (토큰 불필요) */
+  fetch(RAW_CONFIG+'?t='+Date.now())
+    .then(function(r){{return r.ok?r.json():null;}})
+    .then(function(cfg){{
+      if(cfg&&cfg.pwHash&&cfg.pwHash.length===64){{
+        localStorage.setItem(OVERRIDE_KEY,cfg.pwHash);
+      }}
+      if(!trySession())showGate();
+    }})
+    .catch(function(){{if(!trySession())showGate();}});
 }})();
 </script>
 """
