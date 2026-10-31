@@ -33,7 +33,7 @@ body{background:var(--bg);color:var(--t1);min-height:100dvh;font-size:16px;line-
 
 /* layout */
 .app{display:flex;min-height:calc(100dvh - 90px)}
-.sidebar{width:296px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;position:sticky;top:90px;height:calc(100dvh - 90px)}
+.sidebar{width:296px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);padding:16px 14px;display:flex;flex-direction:column;gap:16px;position:sticky;top:90px;height:calc(100dvh - 90px);overflow:hidden}
 .content{flex:1;padding:20px 22px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
 
 /* form */
@@ -200,22 +200,15 @@ textarea{resize:vertical;min-height:72px}
     <div style="display:flex;flex-direction:column;gap:6px">
       <button class="btn btn-g btn-w" onclick="resetGuide()">초기화</button>
     </div>
-    <div style="font-size:12px;color:var(--t3);line-height:1.75;padding-top:12px;border-top:1px solid var(--bd)">
-      <strong style="color:var(--t2);display:block;margin-bottom:2px">사용 방법</strong>
-      1. 날짜 선택 → 자동 입력<br>
-      2. 공지 직접 작성 (선택)<br>
-      3. 월간 3부 자동 표시<br>
-      4. 복사 버튼으로 공유
-    </div>
-    <div id="sideKakao" style="display:none;flex-direction:column;gap:6px">
-      <div class="oh" style="border-bottom:1px solid var(--bd);padding-bottom:8px;margin-bottom:4px">
+    <div id="sideKakao" style="display:none;flex-direction:column;gap:6px;flex:1;min-height:0">
+      <div class="oh" style="border-bottom:1px solid var(--bd);padding-bottom:8px;margin-bottom:4px;flex-shrink:0">
         <span style="font-size:12px;font-weight:600;color:var(--t2)">카카오톡 복사용</span>
         <div style="display:flex;gap:5px">
           <button class="btn btn-g btn-s" id="saveBtn" onclick="saveHistory()">💾 저장</button>
           <button class="btn btn-p btn-s" id="copyBtn" onclick="copyText()">복사</button>
         </div>
       </div>
-      <div class="ob" id="otext" style="font-size:13px;max-height:220px;overflow-y:auto"></div>
+      <div class="ob" id="otext" style="font-size:13px;flex:1;overflow-y:auto;min-height:0"></div>
     </div>
   </aside>
 
@@ -724,20 +717,24 @@ async function ghWrite(file,data){
 function ghListen(file,onData){
   if(!GH.ok)return;
   _pollStopped=false;
-  let lastEtag='';
+  let lastHash='';
   async function poll(){
     if(_pollStopped)return;
     try{
-      /* raw URL로 폴링 - 토큰 불필요 */
+      /* raw URL로 폴링 - 토큰 불필요, ?t= 로 CDN 캐시 우회 */
       const r=await fetch(`${GH.rawBase()}/${file}?t=${Date.now()}`);
-      const etag=r.headers.get('etag')||'';
-      if(r.ok&&etag!==lastEtag){
-        lastEtag=etag;
-        const parsed=await r.json();
-        onData(parsed);
+      if(r.ok){
+        const text=await r.text();
+        /* ETag 대신 내용 해시로 변경 감지 (CDN ETag 불안정 우회) */
+        const hash=text.length+'|'+text.slice(0,120);
+        if(hash!==lastHash){
+          lastHash=hash;
+          try{const parsed=JSON.parse(text);onData(parsed);}catch{}
+        }
       }
     }catch{}
-    if(!_pollStopped)_pollTimer=setTimeout(poll,30000);
+    /* 10초마다 폴링 (실시간에 가까운 동기화) */
+    if(!_pollStopped)_pollTimer=setTimeout(poll,10000);
   }
   poll();
 }
@@ -780,10 +777,15 @@ function persistHistory(arr){
 async function syncHistoryFromFb(){
   if(!FB.ok)return;
   const raw=await fbRead('history');
-  if(!raw||typeof raw!=='object')return;
+  if(!raw||typeof raw!=='object'){
+    updateSyncBadge(GH.canWrite);
+    return;
+  }
   const arr=Object.values(raw).filter(Boolean).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
-  if(arr.length===0)return;
-  try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
+  if(arr.length>0){
+    try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
+  }
+  updateSyncBadge(true);
   if(document.getElementById('tab-history').style.display!=='none')renderHistory();
 }
 
