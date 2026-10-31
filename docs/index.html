@@ -167,30 +167,66 @@ textarea{resize:vertical;min-height:72px}
   var DEFAULT_HASH='b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08';
   var OVERRIDE_KEY='yab26pwHash';
   var AUTH_KEY='yab26auth';
-  var HASH=localStorage.getItem(OVERRIDE_KEY)||DEFAULT_HASH;
-  if(sessionStorage.getItem(AUTH_KEY)===HASH)return;
-  var overlay=document.createElement('div');
-  overlay.id='pwOverlay';
-  overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#fafaf9;font-family:"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
-  overlay.innerHTML='<div style="background:#fff;border-radius:16px;box-shadow:0 0 0 1px rgba(0,0,0,.07),0 8px 32px rgba(0,0,0,.12);padding:36px 32px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:18px;text-align:center">'
-    +'<div style="font-size:28px">🐒</div>'
-    +'<div><div style="font-size:18px;font-weight:700;color:#1c1917;letter-spacing:-.02em">영아부 예배 안내 생성기</div>'
-    +'<div style="font-size:13px;color:#a8a29e;margin-top:4px">접근 비밀번호를 입력하세요</div></div>'
-    +'<input id="pwInput" type="password" placeholder="비밀번호" autocomplete="current-password" style="width:100%;padding:10px 13px;border:1px solid rgba(0,0,0,.13);border-radius:8px;font-size:15px;font-family:inherit;text-align:center;outline:none;box-sizing:border-box">'
-    +'<div id="pwErr" style="font-size:12px;color:#dc2626;min-height:16px"></div>'
-    +'<button id="pwBtn" style="background:#b45309;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">확인</button>'
-    +'</div>';
-  document.body.appendChild(overlay);
-  function check(){
-    var pw=document.getElementById('pwInput').value;
-    crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw)).then(function(buf){
-      var hex=Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
-      if(hex===HASH){sessionStorage.setItem(AUTH_KEY,HASH);document.getElementById('pwOverlay').remove();}
-      else{document.getElementById('pwErr').textContent='비밀번호가 올바르지 않습니다.';document.getElementById('pwInput').value='';}
-    });
+  var FB_URL='';
+  var FB_SEC='';
+  var fbOk=FB_URL.startsWith('https://')&&FB_SEC.length>10;
+
+  function getHash(){
+    return localStorage.getItem(OVERRIDE_KEY)||DEFAULT_HASH;
   }
-  document.getElementById('pwBtn').addEventListener('click',check);
-  document.getElementById('pwInput').addEventListener('keydown',function(e){if(e.key==='Enter')check();});
+
+  function trySession(){
+    var h=getHash();
+    if(sessionStorage.getItem(AUTH_KEY)===h)return true;
+    return false;
+  }
+
+  function showGate(){
+    var overlay=document.createElement('div');
+    overlay.id='pwOverlay';
+    overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#fafaf9;font-family:"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+    overlay.innerHTML='<div style="background:#fff;border-radius:16px;box-shadow:0 0 0 1px rgba(0,0,0,.07),0 8px 32px rgba(0,0,0,.12);padding:36px 32px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:18px;text-align:center">'
+      +'<div style="font-size:28px">🐒</div>'
+      +'<div><div style="font-size:18px;font-weight:700;color:#1c1917;letter-spacing:-.02em">영아부 예배 안내 생성기</div>'
+      +'<div style="font-size:13px;color:#a8a29e;margin-top:4px">접근 비밀번호를 입력하세요</div></div>'
+      +'<input id="pwInput" type="password" placeholder="비밀번호" autocomplete="current-password" style="width:100%;padding:10px 13px;border:1px solid rgba(0,0,0,.13);border-radius:8px;font-size:15px;font-family:inherit;text-align:center;outline:none;box-sizing:border-box">'
+      +'<div id="pwErr" style="font-size:12px;color:#dc2626;min-height:16px"></div>'
+      +'<button id="pwBtn" style="background:#b45309;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">확인</button>'
+      +'</div>';
+    document.body.appendChild(overlay);
+
+    function check(){
+      var pw=document.getElementById('pwInput').value;
+      crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw)).then(function(buf){
+        var hex=Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+        var activeHash=getHash();
+        if(hex===activeHash){
+          sessionStorage.setItem(AUTH_KEY,activeHash);
+          document.getElementById('pwOverlay').remove();
+        }else{
+          document.getElementById('pwErr').textContent='비밀번호가 올바르지 않습니다.';
+          document.getElementById('pwInput').value='';
+        }
+      });
+    }
+    document.getElementById('pwBtn').addEventListener('click',check);
+    document.getElementById('pwInput').addEventListener('keydown',function(e){if(e.key==='Enter')check();});
+    setTimeout(function(){document.getElementById('pwInput')&&document.getElementById('pwInput').focus();},100);
+  }
+
+  if(fbOk){
+    fetch(FB_URL+'/config/pwHash.json?auth='+FB_SEC)
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(remote){
+        if(remote&&typeof remote==='string'&&remote.length===64){
+          localStorage.setItem(OVERRIDE_KEY,remote);
+        }
+        if(!trySession())showGate();
+      })
+      .catch(function(){if(!trySession())showGate();});
+  }else{
+    if(!trySession())showGate();
+  }
 })();
 </script>
 <div class="toast" id="toast"></div>
@@ -356,7 +392,10 @@ textarea{resize:vertical;min-height:72px}
 <div id="tab-history" style="display:none;flex-direction:column">
   <div class="hist-toolbar">
     <span id="histCount">저장된 안내문이 없습니다.</span>
-    <button class="btn btn-d btn-s" onclick="clearAllHistory()">전체 삭제</button>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span id="syncBadge" style="font-size:11px;padding:3px 9px;border-radius:20px;background:var(--sf3);color:var(--t3)">연결 중…</span>
+      <button class="btn btn-d btn-s" onclick="clearAllHistory()">전체 삭제</button>
+    </div>
   </div>
   <div class="hist-list" id="histList">
     <div class="hist-empty" id="histEmpty">
@@ -689,6 +728,50 @@ async function copyText(){
   btn.textContent='완료 ✓';setTimeout(()=>{btn.textContent='복사';},2000);
 }
 
+/* ── Firebase 실시간 동기화 레이어 ── */
+const FB={
+  url:'',
+  secret:'',
+  get ok(){return this.url.startsWith('https://') && this.secret.length>10;},
+  path(p){return `${this.url}/${p}.json?auth=${this.secret}`;}
+};
+
+let _fbEsStopped=false;
+let _fbEsRef=null;
+
+function fbWrite(path,data){
+  if(!FB.ok)return Promise.resolve();
+  return fetch(FB.path(path),{method:'PUT',body:JSON.stringify(data),headers:{'Content-Type':'application/json'}}).catch(()=>{});
+}
+
+function fbRead(path){
+  if(!FB.ok)return Promise.resolve(null);
+  return fetch(FB.path(path)).then(r=>r.ok?r.json():null).catch(()=>null);
+}
+
+function fbListen(path,onData){
+  if(!FB.ok)return;
+  if(_fbEsRef){_fbEsRef.close();}
+  _fbEsStopped=false;
+  const url=`${FB.url}/${path}.json?auth=${FB.secret}`;
+  let es;
+  function connect(){
+    if(_fbEsStopped)return;
+    es=new EventSource(url);
+    _fbEsRef=es;
+    es.addEventListener('put',e=>{
+      try{const d=JSON.parse(e.data);if(d&&d.data!==undefined)onData(d.data);}catch{}
+    });
+    es.addEventListener('patch',e=>{
+      try{const d=JSON.parse(e.data);if(d&&d.data!==undefined)onData(d.data);}catch{}
+    });
+    es.onerror=()=>{es.close();if(!_fbEsStopped)setTimeout(connect,5000);};
+  }
+  connect();
+}
+
+function fbStopListen(){_fbEsStopped=true;if(_fbEsRef){_fbEsRef.close();_fbEsRef=null;}}
+
 /* ── 이력 저장/조회 ── */
 const HIST_KEY='yab26hist';
 const HIST_MAX=52;
@@ -699,6 +782,37 @@ function loadHistory(){
 }
 function persistHistory(arr){
   try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
+  fbWrite('history',Object.fromEntries(arr.map(h=>[h.key.replace(/-/g,''),h])));
+}
+
+async function syncHistoryFromFb(){
+  if(!FB.ok)return;
+  const raw=await fbRead('history');
+  if(!raw||typeof raw!=='object')return;
+  const arr=Object.values(raw).filter(Boolean).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
+  if(arr.length===0)return;
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
+  if(document.getElementById('tab-history').style.display!=='none')renderHistory();
+}
+
+function startHistorySync(){
+  if(!FB.ok)return;
+  fbListen('history',raw=>{
+    if(!raw||typeof raw!=='object')return;
+    const arr=Object.values(raw).filter(Boolean).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
+    try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
+    if(document.getElementById('tab-history').style.display!=='none')renderHistory();
+    updateSyncBadge(true);
+  });
+}
+
+function updateSyncBadge(ok){
+  const b=document.getElementById('syncBadge');
+  if(!b)return;
+  if(!FB.ok){b.textContent='오프라인 모드';b.style.background='var(--sf3)';b.style.color='var(--t3)';return;}
+  b.textContent=ok?'🔴 실시간 연결됨':'연결 중…';
+  b.style.background=ok?'#dcfce7':'var(--ac2)';
+  b.style.color=ok?'var(--ok)':'var(--ac)';
 }
 
 function saveHistory(){
@@ -717,7 +831,7 @@ function saveHistory(){
   persistHistory(arr);
   const btn=document.getElementById('saveBtn');
   btn.textContent='저장됨 ✓';setTimeout(()=>{btn.textContent='💾 저장';},2000);
-  showToast(`${label} 안내문이 저장되었습니다.`);
+  showToast(`${label} 안내문이 저장되었습니다.${FB.ok?' (전체 기기 동기화)':''}`);
 }
 
 function renderHistory(){
@@ -726,6 +840,7 @@ function renderHistory(){
   const empty=document.getElementById('histEmpty');
   const count=document.getElementById('histCount');
   list.querySelectorAll('.hist-card').forEach(el=>el.remove());
+  updateSyncBadge(!!_fbEsRef&&!_fbEsStopped);
   if(arr.length===0){
     empty.style.display='flex';
     count.textContent='저장된 안내문이 없습니다.';
@@ -772,6 +887,7 @@ function deleteHistItem(key){
 function clearAllHistory(){
   if(!confirm('저장된 안내문을 모두 삭제하시겠습니까?'))return;
   persistHistory([]);
+  if(FB.ok)fbWrite('history',null);
   renderHistory();
   showToast('전체 삭제 완료');
 }
@@ -780,7 +896,14 @@ function clearAllHistory(){
 const PW_OVERRIDE_KEY='yab26pwHash';
 const PW_DEFAULT_HASH='b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08';
 
-function getActiveHash(){
+async function getActiveHash(){
+  if(FB.ok){
+    const remote=await fbRead('config/pwHash');
+    if(remote&&typeof remote==='string'&&remote.length===64){
+      localStorage.setItem(PW_OVERRIDE_KEY,remote);
+      return remote;
+    }
+  }
   return localStorage.getItem(PW_OVERRIDE_KEY)||PW_DEFAULT_HASH;
 }
 
@@ -801,17 +924,19 @@ async function changePw(){
   if(nw!==cf){err.textContent='새 비밀번호가 일치하지 않습니다.';return;}
 
   const curHash=await sha256hex(cur);
-  if(curHash!==getActiveHash()){err.textContent='현재 비밀번호가 올바르지 않습니다.';return;}
+  const activeHash=await getActiveHash();
+  if(curHash!==activeHash){err.textContent='현재 비밀번호가 올바르지 않습니다.';return;}
 
   const newHash=await sha256hex(nw);
   localStorage.setItem(PW_OVERRIDE_KEY,newHash);
   sessionStorage.setItem('yab26auth',newHash);
+  if(FB.ok)await fbWrite('config/pwHash',newHash);
 
   document.getElementById('pwCurrent').value='';
   document.getElementById('pwNew').value='';
   document.getElementById('pwConfirm').value='';
   closeModal('pwChangeModal');
-  showToast('✅ 비밀번호가 변경되었습니다.');
+  showToast('✅ 비밀번호가 변경되었습니다.'+(FB.ok?' (전체 기기 적용)':''));
 }
 
 function resetGuide(){
@@ -1316,6 +1441,8 @@ function showToast(msg){
 /* ── 초기화 ── */
 buildSelect();
 buildMtabs();
+syncHistoryFromFb();
+startHistorySync();
 </script>
 </body>
 </html>
