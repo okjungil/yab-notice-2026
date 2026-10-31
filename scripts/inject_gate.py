@@ -1,11 +1,4 @@
-"""Injects the JS password gate into output/영아부_예배안내_생성기.html
-and writes the result to docs/index.html.
-
-Password is read from the PW_HASH env var (SHA-256 hex of the site password).
-Default hash matches 'yab2026'. Change PW_HASH in the GitHub Actions secret
-or Actions variable to rotate the password without touching source code.
-"""
-import hashlib, os, pathlib, sys
+import hashlib, os, pathlib
 
 ROOT = pathlib.Path(__file__).parent.parent
 SRC  = ROOT / "output" / "영아부_예배안내_생성기.html"
@@ -18,9 +11,11 @@ PW_HASH = os.environ.get(
 
 GATE = f"""<script>
 (function(){{
-  var HASH='{PW_HASH}';
-  var KEY='yab26auth';
-  if(sessionStorage.getItem(KEY)===HASH)return;
+  var DEFAULT_HASH='{PW_HASH}';
+  var OVERRIDE_KEY='yab26pwHash';
+  var AUTH_KEY='yab26auth';
+  var HASH=localStorage.getItem(OVERRIDE_KEY)||DEFAULT_HASH;
+  if(sessionStorage.getItem(AUTH_KEY)===HASH)return;
   var overlay=document.createElement('div');
   overlay.id='pwOverlay';
   overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#fafaf9;font-family:"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
@@ -37,7 +32,7 @@ GATE = f"""<script>
     var pw=document.getElementById('pwInput').value;
     crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw)).then(function(buf){{
       var hex=Array.from(new Uint8Array(buf)).map(function(b){{return b.toString(16).padStart(2,'0');}}).join('');
-      if(hex===HASH){{sessionStorage.setItem(KEY,HASH);document.getElementById('pwOverlay').remove();}}
+      if(hex===HASH){{sessionStorage.setItem(AUTH_KEY,HASH);document.getElementById('pwOverlay').remove();}}
       else{{document.getElementById('pwErr').textContent='비밀번호가 올바르지 않습니다.';document.getElementById('pwInput').value='';}}
     }});
   }}
@@ -52,3 +47,4 @@ out = src.replace("<body>\n", "<body>\n" + GATE, 1)
 DEST.parent.mkdir(parents=True, exist_ok=True)
 DEST.write_text(out, encoding="utf-8")
 print(f"✅  {DEST} ({len(out):,} chars)")
+
