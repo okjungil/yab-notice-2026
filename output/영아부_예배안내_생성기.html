@@ -147,15 +147,6 @@ textarea{resize:vertical;min-height:72px}
 .hist-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:64px 24px;text-align:center;color:var(--t3)}
 .hist-toolbar{padding:12px 18px;background:var(--sf);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .hist-toolbar span{font-size:13px;color:var(--t2)}
-const firebaseConfig = {
-  apiKey: "AIzaSyBoM98v1fdAECFfl2mb4KBwFKFm0xTa6fw",
-  authDomain: "yab-notice-2026.firebaseapp.com",
-  databaseURL: "https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "yab-notice-2026",
-  storageBucket: "yab-notice-2026.firebasestorage.app",
-  messagingSenderId: "1064623282716",
-  appId: "1:1064623282716:web:b3221b94fb0e5214085dd9"
-};
 /* toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--t1);color:#fff;padding:9px 16px;border-radius:var(--rlg);font-size:13px;font-weight:500;opacity:0;transition:opacity 200ms;z-index:200;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
@@ -405,6 +396,22 @@ const firebaseConfig = {
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ── Firebase 실시간 동기화 초기화 ── */
+const firebaseConfig = {
+  apiKey: "AIzaSyBoM98v1fdAECFfl2mb4KBwFKFm0xTa6fw",
+  authDomain: "yab-notice-2026.firebaseapp.com",
+  databaseURL: "https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "yab-notice-2026",
+  storageBucket: "yab-notice-2026.firebasestorage.app",
+  messagingSenderId: "1064623282716",
+  appId: "1:1064623282716:web:b3221b94fb0e5214085dd9"
+};
+firebase.initializeApp(firebaseConfig);
+const fbDb = firebase.database();
+</script>
 <script>
 const SUP=['¹','²','³','⁴','⁵'];
 const MN=['','1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -659,112 +666,45 @@ async function copyText(){
   btn.textContent='완료 ✓';setTimeout(()=>{btn.textContent='복사';},2000);
 }
 
-/* ── GitHub Contents API 실시간 동기화 레이어 ── */
+/* ── Firebase Realtime Database 실시간 동기화 레이어 ── */
 const GH={
-  token:'__GH_TOKEN__',
-  repo:'__GH_REPO__',
-  branch:'data',
-  get ok(){return this.repo.includes('/');},
-  get canWrite(){return this.token.length>10;},
-  apiBase(){return `https://api.github.com/repos/${this.repo}/contents/data`;},
-  rawBase(){return `https://raw.githubusercontent.com/${this.repo}/${this.branch}/data`;},
-  headers(){return {
-    'Authorization':`token ${this.token}`,
-    'Accept':'application/vnd.github.v3+json',
-    'Content-Type':'application/json'
-  };}
+  get ok(){return !!fbDb;},
+  get canWrite(){return !!fbDb;}
 };
 
-/* SHA 캐시 (PUT시 필요) */
-const _ghSha={};
-let _pollTimer=null;
-let _pollStopped=false;
+const _fbListeners={};
+
+/* file 예: 'history.json' → Firebase 경로 'history' */
+function _fbPath(file){return file.replace(/\.json$/,'');}
 
 async function ghRead(file){
   if(!GH.ok)return null;
   try{
-    /* raw URL로 읽기 - 토큰 없이도 public repo에서 동작 */
-    const r=await fetch(`${GH.rawBase()}/${file}?t=${Date.now()}`);
-    if(!r.ok)return null;
-    return await r.json();
-  }catch(e){console.warn('ghRead err',e);return null;}
+    const snap=await fbDb.ref(_fbPath(file)).once('value');
+    return snap.val();
+  }catch(e){console.warn('fbRead err',e);return null;}
 }
 
-/* SHA 가져오기 (쓰기 전 필요) */
-async function ghGetSha(file){
-  if(!GH.canWrite)return null;
-  try{
-    const r=await fetch(`${GH.apiBase()}/${file}`,{headers:GH.headers()});
-    if(!r.ok)return null;
-    const d=await r.json();
-    _ghSha[file]=d.sha;
-    return d.sha;
-  }catch{return null;}
-}
-
-/* 쓰기 큐 - 동시 PUT 충돌 방지 */
-const _ghQueue={};
 async function ghWrite(file,data){
-  if(!GH.canWrite){console.warn('ghWrite: no token');return;}
-  /* 이미 같은 파일 쓰기 진행 중이면 최신 데이터로 교체 후 대기 */
-  if(_ghQueue[file]){_ghQueue[file].pending=data;return;}
-  _ghQueue[file]={pending:null};
-  let current=data;
-  while(true){
-    try{
-      /* SHA 항상 최신으로 가져오기 (캐시 충돌 방지) */
-      await ghGetSha(file);
-      const content=btoa(unescape(encodeURIComponent(JSON.stringify(current,null,2))));
-      const sha=_ghSha[file];
-      const body={message:`sync: update ${file}`,content,branch:GH.branch};
-      if(sha)body.sha=sha;
-      const r=await fetch(`${GH.apiBase()}/${file}`,{
-        method:'PUT',headers:GH.headers(),body:JSON.stringify(body)
-      });
-      if(r.ok){
-        const d=await r.json();
-        _ghSha[file]=d.content.sha;
-      }else{
-        const errText=await r.text();
-        console.warn('ghWrite fail',r.status,errText);
-        /* SHA 불일치 시 초기화 후 재시도 */
-        if(r.status===409||r.status===422){_ghSha[file]=null;}
-      }
-    }catch(e){console.warn('ghWrite err',e);}
-    /* 대기 중인 최신 데이터가 있으면 이어서 쓰기, 없으면 종료 */
-    if(_ghQueue[file]&&_ghQueue[file].pending!==null){
-      current=_ghQueue[file].pending;
-      _ghQueue[file].pending=null;
-    }else{break;}
-  }
-  delete _ghQueue[file];
+  if(!GH.canWrite){console.warn('ghWrite: firebase not ready');return;}
+  try{
+    await fbDb.ref(_fbPath(file)).set(data);
+  }catch(e){console.warn('fbWrite err',e);}
 }
 
+/* 실시간 리스너: 폴링 없이 Firebase onValue로 즉시 반영 */
 function ghListen(file,onData){
   if(!GH.ok)return;
-  _pollStopped=false;
-  let lastText='';
-  async function poll(){
-    if(_pollStopped)return;
-    try{
-      /* raw URL + 캐시 완전 우회 (no-store) */
-      const r=await fetch(`${GH.rawBase()}/${file}?t=${Date.now()}`,{cache:'no-store'});
-      if(r.ok){
-        const text=await r.text();
-        /* 전체 텍스트 비교 - 부분 해시 오탐 방지 */
-        if(text!==lastText){
-          lastText=text;
-          try{const parsed=JSON.parse(text);onData(parsed);}catch{}
-        }
-      }
-    }catch{}
-    /* 10초마다 폴링 */
-    if(!_pollStopped)_pollTimer=setTimeout(poll,10000);
-  }
-  poll();
+  const path=_fbPath(file);
+  const ref=fbDb.ref(path);
+  const cb=snap=>{onData(snap.val());};
+  ref.on('value',cb);
+  _fbListeners[path]=()=>ref.off('value',cb);
 }
 
-function ghStopListen(){_pollStopped=true;if(_pollTimer){clearTimeout(_pollTimer);_pollTimer=null;}}
+function ghStopListen(){
+  Object.values(_fbListeners).forEach(off=>off());
+}
 
 /* ── 이력 저장/조회 ── */
 const HIST_KEY='yab26hist';
@@ -863,7 +803,7 @@ function renderHistory(){
   const empty=document.getElementById('histEmpty');
   const count=document.getElementById('histCount');
   list.querySelectorAll('.hist-card').forEach(el=>el.remove());
-  updateSyncBadge(GH.ok&&!_pollStopped);
+  updateSyncBadge(GH.ok);
   if(arr.length===0){
     empty.style.display='flex';
     count.textContent='저장된 안내문이 없습니다.';
@@ -1554,20 +1494,38 @@ function importData() {
     input.click();
 }
 
-// 4. Auto Select Next Sunday
+// 4. Auto Select Next Sunday (실제 앱의 select#dateSelect 에 맞춘 로직)
 function selectNextSunday() {
-    const now = new Date();
-    const day = now.getDay(); // 0: Sun, 1: Mon...
-    const diff = day === 0 ? 0 : 7 - day;
-    const nextSunday = new Date(now.getTime() + diff * 24 * 60 * 60 * 1000);
-    const dateStr = nextSunday.toISOString().split('T')[0];
+    const sel = document.getElementById('dateSelect');
+    if (!sel || sel.value) return; // 이미 선택되어 있으면 건너뜀
 
-    // 이 부분은 기존 앱의 날짜 선택 로직(일례로 input id='targetDate' 등)에 맞춰야 함
-    const dateInput = document.querySelector('input[type="date"]');
-    if(dateInput && !dateInput.value) {
-        dateInput.value = dateStr;
-        // 기존 앱의 변경 이벤트 트리거 (예: loadDate())
-        if(typeof loadDate === 'function') loadDate(); 
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    let best = null, bestDiff = Infinity;
+    sel.querySelectorAll('option[value]').forEach(opt => {
+        if (!opt.value) return;
+        const [m, d] = opt.value.split('-').map(Number);
+        const optDate = new Date(2026, m - 1, d);
+        const diff = optDate - now;
+        if (diff >= 0 && diff < bestDiff) { bestDiff = diff; best = opt.value; }
+    });
+
+    // 올해 남은 일정이 없으면 가장 가까운(과거) 날짜로 대체
+    if (!best) {
+        let minAbs = Infinity;
+        sel.querySelectorAll('option[value]').forEach(opt => {
+            if (!opt.value) return;
+            const [m, d] = opt.value.split('-').map(Number);
+            const optDate = new Date(2026, m - 1, d);
+            const diffAbs = Math.abs(optDate - now);
+            if (diffAbs < minAbs) { minAbs = diffAbs; best = opt.value; }
+        });
+    }
+
+    if (best) {
+        sel.value = best;
+        if (typeof onDate === 'function') onDate();
     }
 }
 
@@ -1586,8 +1544,10 @@ window.addEventListener('DOMContentLoaded', () => {
     `;
     document.body.prepend(bar);
 
-    setTimeout(selectNextSunday, 500);
+    // buildSelect()가 끝난 뒤(동기 실행 완료) 바로 자동 날짜 선택 수행
+    selectNextSunday();
 });
+
 </script>
 </body>
 </html>
