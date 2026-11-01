@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>영아부 예배 안내 생성기 2026</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <link rel="preconnect" href="https://rsms.me/">
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 <style>
@@ -396,22 +398,6 @@ textarea{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script>
-/* ── Firebase 실시간 동기화 초기화 ── */
-const firebaseConfig = {
-  apiKey: "AIzaSyBoM98v1fdAECFfl2mb4KBwFKFm0xTa6fw",
-  authDomain: "yab-notice-2026.firebaseapp.com",
-  databaseURL: "https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "yab-notice-2026",
-  storageBucket: "yab-notice-2026.firebasestorage.app",
-  messagingSenderId: "1064623282716",
-  appId: "1:1064623282716:web:b3221b94fb0e5214085dd9"
-};
-firebase.initializeApp(firebaseConfig);
-const fbDb = firebase.database();
-</script>
 <script>
 const SUP=['¹','²','³','⁴','⁵'];
 const MN=['','1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -667,43 +653,57 @@ async function copyText(){
 }
 
 /* ── Firebase Realtime Database 실시간 동기화 레이어 ── */
+const firebaseConfig={
+  apiKey:"AIzaSyBoM98v1fdAECFfl2mb4KBwFKFm0xTa6fw",
+  authDomain:"yab-notice-2026.firebaseapp.com",
+  databaseURL:"https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"yab-notice-2026",
+  storageBucket:"yab-notice-2026.firebasestorage.app",
+  messagingSenderId:"1064623282716",
+  appId:"1:1064623282716:web:b3221b94fb0e5214085dd9"
+};
+let _fbDb=null;
+try{
+  firebase.initializeApp(firebaseConfig);
+  _fbDb=firebase.database();
+}catch(e){console.error('Firebase 초기화 실패',e);_fbDb=null;}
+
 const GH={
-  get ok(){return !!fbDb;},
-  get canWrite(){return !!fbDb;}
+  get ok(){return !!_fbDb;},
+  get canWrite(){return !!_fbDb;}
 };
 
-const _fbListeners={};
-
-/* file 예: 'history.json' → Firebase 경로 'history' */
 function _fbPath(file){return file.replace(/\.json$/,'');}
 
 async function ghRead(file){
-  if(!GH.ok)return null;
+  if(!_fbDb)return null;
   try{
-    const snap=await fbDb.ref(_fbPath(file)).once('value');
-    return snap.val();
-  }catch(e){console.warn('fbRead err',e);return null;}
+    const snap=await _fbDb.ref(_fbPath(file)).once('value');
+    return snap.exists()?snap.val():null;
+  }catch(e){console.warn('ghRead err',e);return null;}
 }
 
 async function ghWrite(file,data){
-  if(!GH.canWrite){console.warn('ghWrite: firebase not ready');return;}
+  if(!_fbDb){console.warn('ghWrite: firebase 연결 안됨');return;}
   try{
-    await fbDb.ref(_fbPath(file)).set(data);
-  }catch(e){console.warn('fbWrite err',e);}
+    await _fbDb.ref(_fbPath(file)).set(data);
+  }catch(e){console.warn('ghWrite err',e);}
 }
 
-/* 실시간 리스너: 폴링 없이 Firebase onValue로 즉시 반영 */
+const _fbListeners={};
 function ghListen(file,onData){
-  if(!GH.ok)return;
+  if(!_fbDb)return;
   const path=_fbPath(file);
-  const ref=fbDb.ref(path);
-  const cb=snap=>{onData(snap.val());};
+  if(_fbListeners[path])return;
+  const ref=_fbDb.ref(path);
+  const cb=snap=>onData(snap.exists()?snap.val():null);
   ref.on('value',cb);
-  _fbListeners[path]=()=>ref.off('value',cb);
+  _fbListeners[path]={ref,cb};
 }
 
 function ghStopListen(){
-  Object.values(_fbListeners).forEach(off=>off());
+  Object.entries(_fbListeners).forEach(([path,obj])=>obj.ref.off('value',obj.cb));
+  for(const k in _fbListeners)delete _fbListeners[k];
 }
 
 /* ── 이력 저장/조회 ── */
@@ -1404,150 +1404,32 @@ function showToast(msg){
   clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
+/* ── 다음 주일 자동 선택 ── */
+function selectUpcomingSunday(){
+  const sel=document.getElementById('dateSelect');
+  if(!sel)return;
+  const opts=Array.from(sel.querySelectorAll('option')).filter(o=>o.value);
+  if(opts.length===0)return;
+  const today=new Date();
+  const todayKey=(today.getMonth()+1)*100+today.getDate();
+  let best=null,bestDiff=Infinity;
+  for(const o of opts){
+    const[m,d]=o.value.split('-').map(Number);
+    const diff=(m*100+d)-todayKey;
+    if(diff>=0&&diff<bestDiff){bestDiff=diff;best=o;}
+  }
+  if(!best)best=opts[0];
+  sel.value=best.value;
+  onDate();
+}
+
 /* ── 초기화 ── */
 buildSelect();
 buildMtabs();
+selectUpcomingSunday();
 syncHistoryFromFb();
 startHistorySync();
 </script>
 
-<style>
-  :root {
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
-    --bg-main: #f9fafb;
-    --card-bg: #ffffff;
-    --text-main: #111827;
-    --text-muted: #6b7280;
-    --border-color: #e5e7eb;
-  }
-
-  [data-theme='dark'] {
-    --bg-main: #111827;
-    --card-bg: #1f2937;
-    --text-main: #f9fafb;
-    --text-muted: #9ca3af;
-    --border-color: #374151;
-  }
-
-  body { background-color: var(--bg-main) !important; color: var(--text-main) !important; transition: background 0.3s, color 0.3s; }
-  .card, .modal, .tab-content { background-color: var(--card-bg) !important; border-color: var(--border-color) !important; }
-
-  /* Top Utility Bar */
-  .util-bar {
-    display: flex; gap: 8px; justify-content: flex-end; padding: 10px; 
-    background: var(--card-bg); border-bottom: 1px solid var(--border-color);
-    position: sticky; top: 0; z-index: 100;
-  }
-
-  .btn-util {
-    padding: 6px 12px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border-color);
-    background: var(--card-bg); color: var(--text-main); cursor: pointer;
-  }
-  .btn-util:hover { background: var(--border-color); }
-</style>
-
-<script>
-// --- Added Features v2.0 ---
-
-// 1. Dark Mode Toggle
-function toggleDarkMode() {
-    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('yab_theme', theme);
-}
-
-// 2. Export Data
-function exportData() {
-    const data = {
-        schedules: localStorage.getItem('yab_schedules'),
-        templates: localStorage.getItem('yab_templates'),
-        config: localStorage.getItem('yab_config')
-    };
-    const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `yab_backup_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-}
-
-// 3. Import Data
-function importData() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = event => {
-            try {
-                const data = JSON.parse(event.target.result);
-                if(data.schedules) localStorage.setItem('yab_schedules', data.schedules);
-                if(data.templates) localStorage.setItem('yab_templates', data.templates);
-                alert('데이터를 성공적으로 불러왔습니다. 페이지를 새로고침합니다.');
-                location.reload();
-            } catch(err) { alert('유효하지 않은 백업 파일입니다.'); }
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
-// 4. Auto Select Next Sunday (실제 앱의 select#dateSelect 에 맞춘 로직)
-function selectNextSunday() {
-    const sel = document.getElementById('dateSelect');
-    if (!sel || sel.value) return; // 이미 선택되어 있으면 건너뜀
-
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-
-    let best = null, bestDiff = Infinity;
-    sel.querySelectorAll('option[value]').forEach(opt => {
-        if (!opt.value) return;
-        const [m, d] = opt.value.split('-').map(Number);
-        const optDate = new Date(2026, m - 1, d);
-        const diff = optDate - now;
-        if (diff >= 0 && diff < bestDiff) { bestDiff = diff; best = opt.value; }
-    });
-
-    // 올해 남은 일정이 없으면 가장 가까운(과거) 날짜로 대체
-    if (!best) {
-        let minAbs = Infinity;
-        sel.querySelectorAll('option[value]').forEach(opt => {
-            if (!opt.value) return;
-            const [m, d] = opt.value.split('-').map(Number);
-            const optDate = new Date(2026, m - 1, d);
-            const diffAbs = Math.abs(optDate - now);
-            if (diffAbs < minAbs) { minAbs = diffAbs; best = opt.value; }
-        });
-    }
-
-    if (best) {
-        sel.value = best;
-        if (typeof onDate === 'function') onDate();
-    }
-}
-
-// Initialize
-window.addEventListener('DOMContentLoaded', () => {
-    // Theme restore
-    if(localStorage.getItem('yab_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-
-    // Inject Utility Bar
-    const bar = document.createElement('div');
-    bar.className = 'util-bar';
-    bar.innerHTML = `
-        <button class="btn-util" onclick="exportData()">📤 내보내기</button>
-        <button class="btn-util" onclick="importData()">📥 가져오기</button>
-        <button class="btn-util" onclick="toggleDarkMode()">🌓 테마</button>
-    `;
-    document.body.prepend(bar);
-
-    // buildSelect()가 끝난 뒤(동기 실행 완료) 바로 자동 날짜 선택 수행
-    selectNextSunday();
-});
-
-</script>
 </body>
 </html>
