@@ -163,7 +163,76 @@ textarea{resize:vertical;min-height:72px}
 </style>
 </head>
 <body>
+<script>
+(function(){
+  var DEFAULT_HASH='';
+  var OVERRIDE_KEY='yab26pwHash';
+  var AUTH_KEY='yab26auth';
+  var GH_TOKEN='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';
+  var GH_REPO='okjungil/yab-notice-2026';
+  var RAW_CONFIG='https://raw.githubusercontent.com/'+GH_REPO+'/data/data/config.json';
 
+  /* 항상 DEFAULT_HASH를 기준으로 초기화 (이전 Firebase 잔여값 방지) */
+  var stored=localStorage.getItem(OVERRIDE_KEY);
+  if(!stored||stored.length!==64){
+    localStorage.setItem(OVERRIDE_KEY,DEFAULT_HASH);
+  }
+
+  function getHash(){
+    return localStorage.getItem(OVERRIDE_KEY)||DEFAULT_HASH;
+  }
+
+  function trySession(){
+    var h=getHash();
+    if(sessionStorage.getItem(AUTH_KEY)===h)return true;
+    return false;
+  }
+
+  function showGate(){
+    var overlay=document.createElement('div');
+    overlay.id='pwOverlay';
+    overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#fafaf9;font-family:"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+    overlay.innerHTML='<div style="background:#fff;border-radius:16px;box-shadow:0 0 0 1px rgba(0,0,0,.07),0 8px 32px rgba(0,0,0,.12);padding:36px 32px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:18px;text-align:center">'
+      +'<div style="font-size:28px">🐒</div>'
+      +'<div><div style="font-size:18px;font-weight:700;color:#1c1917;letter-spacing:-.02em">영아부 예배 안내 생성기</div>'
+      +'<div style="font-size:13px;color:#a8a29e;margin-top:4px">접근 비밀번호를 입력하세요</div></div>'
+      +'<input id="pwInput" type="password" placeholder="비밀번호" autocomplete="current-password" style="width:100%;padding:10px 13px;border:1px solid rgba(0,0,0,.13);border-radius:8px;font-size:15px;font-family:inherit;text-align:center;outline:none;box-sizing:border-box">'
+      +'<div id="pwErr" style="font-size:12px;color:#dc2626;min-height:16px"></div>'
+      +'<button id="pwBtn" style="background:#b45309;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">확인</button>'
+      +'</div>';
+    document.body.appendChild(overlay);
+
+    function check(){
+      var pw=document.getElementById('pwInput').value;
+      crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw)).then(function(buf){
+        var hex=Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+        var activeHash=getHash();
+        if(hex===activeHash){
+          sessionStorage.setItem(AUTH_KEY,activeHash);
+          document.getElementById('pwOverlay').remove();
+        }else{
+          document.getElementById('pwErr').textContent='비밀번호가 올바르지 않습니다.';
+          document.getElementById('pwInput').value='';
+        }
+      });
+    }
+    document.getElementById('pwBtn').addEventListener('click',check);
+    document.getElementById('pwInput').addEventListener('keydown',function(e){if(e.key==='Enter')check();});
+    setTimeout(function(){document.getElementById('pwInput')&&document.getElementById('pwInput').focus();},100);
+  }
+
+  /* raw URL로 config.json 읽기 (토큰 불필요) */
+  fetch(RAW_CONFIG+'?t='+Date.now())
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(cfg){
+      if(cfg&&cfg.pwHash&&cfg.pwHash.length===64){
+        localStorage.setItem(OVERRIDE_KEY,cfg.pwHash);
+      }
+      if(!trySession())showGate();
+    })
+    .catch(function(){if(!trySession())showGate();});
+})();
+</script>
 <script>
 (function(){
   var NEW_HASH='158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab'; /* "2026" 의 SHA-256 해시값 */
