@@ -165,37 +165,42 @@ textarea{resize:vertical;min-height:72px}
 <body>
 <script>
 (function(){
-  /* ── 강제 비밀번호 초기화 (2026-11) ──
-     데스크탑/모바일 브라우저 환경에 따라 로그인이 간헐적으로 막히는 문제를 근본적으로 없애기 위해,
-     1) 로그인 창은 네트워크 요청과 무관하게 항상 즉시(동기적으로) 표시하고,
-     2) 비밀번호는 아래 고정 해시값 하나만 기준으로 판단합니다 (원격 fetch로 인한 지연/레이스 컨디션 제거).
-     3) 기기에 남아있던 예전 override 값은 모두 삭제하고, Firebase에도 같은 값을 1회 강제로 덮어써서
-        모든 기기/브라우저가 동일한 새 비밀번호를 쓰도록 맞춥니다.
-     새 임시 비밀번호: 2026  (로그인 성공 후 반드시 설정에서 원하는 비밀번호로 바꿔주세요) */
-  var DEFAULT_HASH='158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab';
+  var NEW_HASH='158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab'; /* "2026" 의 SHA-256 해시값 */
   var OVERRIDE_KEY='yab26pwHash';
   var AUTH_KEY='yab26auth';
-  var FORCE_RESET_FLAG='yab26pwForceResetV3';
+  var RESET_FLAG='yab26forceReset_20261102';
   var FB_DB_URL='https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app';
   var REMOTE_PW_URL=FB_DB_URL+'/config/pwHash.json';
 
-  /* 이 기기에 남아있던 이전 override/세션 값을 전부 제거하여 깨진 상태를 초기화합니다 (1회) */
-  if(!localStorage.getItem(FORCE_RESET_FLAG)){
-    localStorage.removeItem(OVERRIDE_KEY);
+  var justReset=false;
+  if(!localStorage.getItem(RESET_FLAG)){
+    justReset=true;
+    localStorage.setItem(OVERRIDE_KEY,NEW_HASH);
     sessionStorage.removeItem(AUTH_KEY);
-    localStorage.setItem(FORCE_RESET_FLAG,'1');
+    localStorage.setItem(RESET_FLAG,'1');
+    try{
+      fetch(REMOTE_PW_URL,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(NEW_HASH)});
+    }catch(e){}
+  }
+
+  var stored=localStorage.getItem(OVERRIDE_KEY);
+  if(!stored||stored.length!==64){
+    localStorage.setItem(OVERRIDE_KEY,NEW_HASH);
   }
 
   function getHash(){
-    var o=localStorage.getItem(OVERRIDE_KEY);
-    return (o&&o.length===64)?o:DEFAULT_HASH;
+    return localStorage.getItem(OVERRIDE_KEY)||NEW_HASH;
   }
 
   function trySession(){
-    return sessionStorage.getItem(AUTH_KEY)===getHash();
+    var h=getHash();
+    return sessionStorage.getItem(AUTH_KEY)===h;
   }
 
+  var gateRendered=false;
   function showGate(){
+    if(gateRendered)return;
+    gateRendered=true;
     var overlay=document.createElement('div');
     overlay.id='pwOverlay';
     overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#fafaf9;font-family:"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
@@ -215,47 +220,56 @@ textarea{resize:vertical;min-height:72px}
       var pwEl=document.getElementById('pwInput');
       var btnEl=document.getElementById('pwBtn');
       var pw=pwEl.value;
-      if(!pw){document.getElementById('pwErr').textContent='비밀번호를 입력해 주세요.';return;}
-      if(!(window.crypto&&window.crypto.subtle)){
-        document.getElementById('pwErr').textContent='이 브라우저 환경에서는 로그인을 처리할 수 없습니다 (HTTPS 필요).';
+      if(!pw){
+        document.getElementById('pwErr').textContent='비밀번호를 입력하세요.';
         return;
       }
-      busy=true;btnEl.textContent='확인 중…';btnEl.disabled=true;
+      if(!(window.crypto&&window.crypto.subtle)){
+        document.getElementById('pwErr').textContent='이 브라우저/연결에서는 보안 기능(HTTPS)이 필요합니다.';
+        return;
+      }
+      busy=true;
+      btnEl.textContent='확인 중…';
       crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw)).then(function(buf){
         var hex=Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
         var activeHash=getHash();
+        busy=false;
+        btnEl.textContent='확인';
         if(hex===activeHash){
           sessionStorage.setItem(AUTH_KEY,activeHash);
-          document.getElementById('pwOverlay').remove();
+          var ov=document.getElementById('pwOverlay');
+          if(ov)ov.remove();
         }else{
           document.getElementById('pwErr').textContent='비밀번호가 올바르지 않습니다.';
           pwEl.value='';
-          busy=false;btnEl.textContent='확인';btnEl.disabled=false;
+          pwEl.focus();
         }
       }).catch(function(){
-        document.getElementById('pwErr').textContent='확인 중 오류가 발생했습니다. 새로고침 후 다시 시도해 주세요.';
-        busy=false;btnEl.textContent='확인';btnEl.disabled=false;
+        busy=false;
+        btnEl.textContent='확인';
+        document.getElementById('pwErr').textContent='확인 중 오류가 발생했습니다. 다시 시도해주세요.';
       });
     }
     document.getElementById('pwBtn').addEventListener('click',check);
     document.getElementById('pwInput').addEventListener('keydown',function(e){if(e.key==='Enter')check();});
-    setTimeout(function(){document.getElementById('pwInput')&&document.getElementById('pwInput').focus();},100);
+    setTimeout(function(){var el=document.getElementById('pwInput');if(el)el.focus();},100);
   }
 
-  /* 로그인창은 네트워크와 무관하게 즉시 표시합니다 (레이스 컨디션/무반응 버그의 원인 제거) */
-  if(!trySession())showGate();
+  if(!trySession()){
+    showGate();
+  }
 
-  /* 모든 기기가 같은 새 비밀번호를 쓰도록, Firebase 원격 값을 1회 강제로 새 해시로 덮어씁니다.
-     (쓰기 실패해도 로그인 자체에는 영향 없음 — 위 게이트는 이미 로컬 DEFAULT_HASH로 동작) */
-  try{
-    fetch(REMOTE_PW_URL,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(DEFAULT_HASH)
-    }).catch(function(){});
-  }catch(e){}
+  if(!justReset){
+    fetch(REMOTE_PW_URL+'?t='+Date.now(),{cache:'no-store'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(remoteHash){
+        if(remoteHash&&typeof remoteHash==='string'&&remoteHash.length===64){
+          localStorage.setItem(OVERRIDE_KEY,remoteHash);
+        }
+      })
+      .catch(function(){});
+  }
 })();
-
 </script>
 <div class="toast" id="toast"></div>
 
@@ -947,7 +961,7 @@ async function clearAllHistory(){
 
 /* ── 비밀번호 변경 ── */
 const PW_OVERRIDE_KEY='yab26pwHash';
-const PW_DEFAULT_HASH='158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab';
+const PW_DEFAULT_HASH='b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08';
 
 async function getActiveHash(){
   if(GH.ok){
