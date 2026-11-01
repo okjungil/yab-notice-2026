@@ -147,7 +147,15 @@ textarea{resize:vertical;min-height:72px}
 .hist-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:64px 24px;text-align:center;color:var(--t3)}
 .hist-toolbar{padding:12px 18px;background:var(--sf);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .hist-toolbar span{font-size:13px;color:var(--t2)}
-
+const firebaseConfig = {
+  apiKey: "AIzaSyBoM98v1fdAECFfl2mb4KBwFKFm0xTa6fw",
+  authDomain: "yab-notice-2026.firebaseapp.com",
+  databaseURL: "https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "yab-notice-2026",
+  storageBucket: "yab-notice-2026.firebasestorage.app",
+  messagingSenderId: "1064623282716",
+  appId: "1:1064623282716:web:b3221b94fb0e5214085dd9"
+};
 /* toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--t1);color:#fff;padding:9px 16px;border-radius:var(--rlg);font-size:13px;font-weight:500;opacity:0;transition:opacity 200ms;z-index:200;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
@@ -167,7 +175,7 @@ textarea{resize:vertical;min-height:72px}
   var DEFAULT_HASH='';
   var OVERRIDE_KEY='yab26pwHash';
   var AUTH_KEY='yab26auth';
-  var GH_TOKEN='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';
+  var GH_TOKEN='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';
   var GH_REPO='okjungil/yab-notice-2026';
   var RAW_CONFIG='https://raw.githubusercontent.com/'+GH_REPO+'/data/data/config.json';
 
@@ -723,7 +731,7 @@ async function copyText(){
 
 /* ── GitHub Contents API 실시간 동기화 레이어 ── */
 const GH={
-  token:'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',
+  token:'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',
   repo:'okjungil/yab-notice-2026',
   branch:'data',
   get ok(){return this.repo.includes('/');},
@@ -1532,5 +1540,125 @@ buildMtabs();
 syncHistoryFromFb();
 startHistorySync();
 </script>
+
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --bg-main: #f9fafb;
+    --card-bg: #ffffff;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+    --border-color: #e5e7eb;
+  }
+
+  [data-theme='dark'] {
+    --bg-main: #111827;
+    --card-bg: #1f2937;
+    --text-main: #f9fafb;
+    --text-muted: #9ca3af;
+    --border-color: #374151;
+  }
+
+  body { background-color: var(--bg-main) !important; color: var(--text-main) !important; transition: background 0.3s, color 0.3s; }
+  .card, .modal, .tab-content { background-color: var(--card-bg) !important; border-color: var(--border-color) !important; }
+
+  /* Top Utility Bar */
+  .util-bar {
+    display: flex; gap: 8px; justify-content: flex-end; padding: 10px; 
+    background: var(--card-bg); border-bottom: 1px solid var(--border-color);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .btn-util {
+    padding: 6px 12px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border-color);
+    background: var(--card-bg); color: var(--text-main); cursor: pointer;
+  }
+  .btn-util:hover { background: var(--border-color); }
+</style>
+
+<script>
+// --- Added Features v2.0 ---
+
+// 1. Dark Mode Toggle
+function toggleDarkMode() {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('yab_theme', theme);
+}
+
+// 2. Export Data
+function exportData() {
+    const data = {
+        schedules: localStorage.getItem('yab_schedules'),
+        templates: localStorage.getItem('yab_templates'),
+        config: localStorage.getItem('yab_config')
+    };
+    const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `yab_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+}
+
+// 3. Import Data
+function importData() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = event => {
+            try {
+                const data = JSON.parse(event.target.result);
+                if(data.schedules) localStorage.setItem('yab_schedules', data.schedules);
+                if(data.templates) localStorage.setItem('yab_templates', data.templates);
+                alert('데이터를 성공적으로 불러왔습니다. 페이지를 새로고침합니다.');
+                location.reload();
+            } catch(err) { alert('유효하지 않은 백업 파일입니다.'); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+// 4. Auto Select Next Sunday
+function selectNextSunday() {
+    const now = new Date();
+    const day = now.getDay(); // 0: Sun, 1: Mon...
+    const diff = day === 0 ? 0 : 7 - day;
+    const nextSunday = new Date(now.getTime() + diff * 24 * 60 * 60 * 1000);
+    const dateStr = nextSunday.toISOString().split('T')[0];
+
+    // 이 부분은 기존 앱의 날짜 선택 로직(일례로 input id='targetDate' 등)에 맞춰야 함
+    const dateInput = document.querySelector('input[type="date"]');
+    if(dateInput && !dateInput.value) {
+        dateInput.value = dateStr;
+        // 기존 앱의 변경 이벤트 트리거 (예: loadDate())
+        if(typeof loadDate === 'function') loadDate(); 
+    }
+}
+
+// Initialize
+window.addEventListener('DOMContentLoaded', () => {
+    // Theme restore
+    if(localStorage.getItem('yab_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+
+    // Inject Utility Bar
+    const bar = document.createElement('div');
+    bar.className = 'util-bar';
+    bar.innerHTML = `
+        <button class="btn-util" onclick="exportData()">📤 내보내기</button>
+        <button class="btn-util" onclick="importData()">📥 가져오기</button>
+        <button class="btn-util" onclick="toggleDarkMode()">🌓 테마</button>
+    `;
+    document.body.prepend(bar);
+
+    setTimeout(selectNextSunday, 500);
+});
+</script>
 </body>
 </html>
+
