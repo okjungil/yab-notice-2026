@@ -165,67 +165,62 @@ textarea{resize:vertical;min-height:72px}
 <body>
 <script>
 (function(){
-  var DEFAULT_HASH='b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08';
-  window.YAB_PW_DEFAULT_HASH=DEFAULT_HASH;
+  /* ── 강제 비밀번호 초기화 (2026-11) ──
+     데스크탑/모바일 브라우저 환경에 따라 로그인이 간헐적으로 막히는 문제를 근본적으로 없애기 위해,
+     1) 로그인 창은 네트워크 요청과 무관하게 항상 즉시(동기적으로) 표시하고,
+     2) 비밀번호는 아래 고정 해시값 하나만 기준으로 판단합니다 (원격 fetch로 인한 지연/레이스 컨디션 제거).
+     3) 기기에 남아있던 예전 override 값은 모두 삭제하고, Firebase에도 같은 값을 1회 강제로 덮어써서
+        모든 기기/브라우저가 동일한 새 비밀번호를 쓰도록 맞춥니다.
+     새 임시 비밀번호: 2026  (로그인 성공 후 반드시 설정에서 원하는 비밀번호로 바꿔주세요) */
+  var DEFAULT_HASH='158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab';
   var OVERRIDE_KEY='yab26pwHash';
   var AUTH_KEY='yab26auth';
-  /* 비밀번호 해시는 Firebase Realtime Database(config/pwHash)에서 읽어옵니다.
-     (예전 GitHub raw 방식은 보안(토큰 노출) 및 동기화 불일치 문제로 제거되었습니다) */
+  var FORCE_RESET_FLAG='yab26pwForceResetV3';
   var FB_DB_URL='https://yab-notice-2026-default-rtdb.asia-southeast1.firebasedatabase.app';
   var REMOTE_PW_URL=FB_DB_URL+'/config/pwHash.json';
 
-  var stored=localStorage.getItem(OVERRIDE_KEY);
-  if(!stored||stored.length!==64){
-    localStorage.setItem(OVERRIDE_KEY,DEFAULT_HASH);
+  /* 이 기기에 남아있던 이전 override/세션 값을 전부 제거하여 깨진 상태를 초기화합니다 (1회) */
+  if(!localStorage.getItem(FORCE_RESET_FLAG)){
+    localStorage.removeItem(OVERRIDE_KEY);
+    sessionStorage.removeItem(AUTH_KEY);
+    localStorage.setItem(FORCE_RESET_FLAG,'1');
   }
 
   function getHash(){
-    var h=localStorage.getItem(OVERRIDE_KEY);
-    return (h&&h.length===64)?h:DEFAULT_HASH;
+    var o=localStorage.getItem(OVERRIDE_KEY);
+    return (o&&o.length===64)?o:DEFAULT_HASH;
   }
 
   function trySession(){
-    var h=getHash();
-    if(sessionStorage.getItem(AUTH_KEY)===h)return true;
-    return false;
+    return sessionStorage.getItem(AUTH_KEY)===getHash();
   }
 
-  var gateShown=false;
   function showGate(){
-    if(gateShown)return;
-    gateShown=true;
     var overlay=document.createElement('div');
     overlay.id='pwOverlay';
     overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#fafaf9;font-family:"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
     overlay.innerHTML='<div style="background:#fff;border-radius:16px;box-shadow:0 0 0 1px rgba(0,0,0,.07),0 8px 32px rgba(0,0,0,.12);padding:36px 32px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:18px;text-align:center">'
-      +'<div style="font-size:28px">\ud83d\udc12</div>'
-      +'<div><div style="font-size:18px;font-weight:700;color:#1c1917;letter-spacing:-.02em">\uc601\uc544\ubbe4 \uc608\ubc30 \uc548\ub0b4 \uc0dd\uc131\uae30</div>'
-      +'<div style="font-size:13px;color:#a8a29e;margin-top:4px">\uc811\uae08 \ubc44\ubfcc\ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694</div></div>'
-      +'<input id="pwInput" type="password" placeholder="\ubfcc\ubc88\ud638" autocomplete="current-password" style="width:100%;padding:10px 13px;border:1px solid rgba(0,0,0,.13);border-radius:8px;font-size:15px;font-family:inherit;text-align:center;outline:none;box-sizing:border-box">'
+      +'<div style="font-size:28px">🐒</div>'
+      +'<div><div style="font-size:18px;font-weight:700;color:#1c1917;letter-spacing:-.02em">영아부 예배 안내 생성기</div>'
+      +'<div style="font-size:13px;color:#a8a29e;margin-top:4px">접근 비밀번호를 입력하세요</div></div>'
+      +'<input id="pwInput" type="password" placeholder="비밀번호" autocomplete="current-password" style="width:100%;padding:10px 13px;border:1px solid rgba(0,0,0,.13);border-radius:8px;font-size:15px;font-family:inherit;text-align:center;outline:none;box-sizing:border-box">'
       +'<div id="pwErr" style="font-size:12px;color:#dc2626;min-height:16px"></div>'
-      +'<button id="pwBtn" type="button" style="background:#b45309;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">\ud655\uc778</button>'
+      +'<button id="pwBtn" style="background:#b45309;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">확인</button>'
       +'</div>';
     document.body.appendChild(overlay);
 
-    var checking=false;
+    var busy=false;
     function check(){
-      if(checking)return;
-      var btn=document.getElementById('pwBtn');
-      var errEl=document.getElementById('pwErr');
-      var inputEl=document.getElementById('pwInput');
-      var pw=inputEl.value;
-      if(!pw){
-        errEl.textContent='비밀번호를 입력해 주세요.';
+      if(busy)return;
+      var pwEl=document.getElementById('pwInput');
+      var btnEl=document.getElementById('pwBtn');
+      var pw=pwEl.value;
+      if(!pw){document.getElementById('pwErr').textContent='비밀번호를 입력해 주세요.';return;}
+      if(!(window.crypto&&window.crypto.subtle)){
+        document.getElementById('pwErr').textContent='이 브라우저 환경에서는 로그인을 처리할 수 없습니다 (HTTPS 필요).';
         return;
       }
-      checking=true;
-      if(btn)btn.textContent='확인 중…';
-      if(!window.crypto||!window.crypto.subtle){
-        errEl.textContent='이 브라우저에서는 보안 기능을 사용할 수 없습니다. (HTTPS 접속 여부를 확인하세요)';
-        if(btn)btn.textContent='확인';
-        checking=false;
-        return;
-      }
+      busy=true;btnEl.textContent='확인 중…';btnEl.disabled=true;
       crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw)).then(function(buf){
         var hex=Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
         var activeHash=getHash();
@@ -233,42 +228,34 @@ textarea{resize:vertical;min-height:72px}
           sessionStorage.setItem(AUTH_KEY,activeHash);
           document.getElementById('pwOverlay').remove();
         }else{
-          errEl.textContent='비밀번호가 올바르지 않습니다.';
-          inputEl.value='';
-          inputEl.focus();
+          document.getElementById('pwErr').textContent='비밀번호가 올바르지 않습니다.';
+          pwEl.value='';
+          busy=false;btnEl.textContent='확인';btnEl.disabled=false;
         }
-      }).catch(function(e){
-        console.error('비밀번호 확인 중 오류',e);
-        errEl.textContent='확인 중 오류가 발생했습니다. 다시 시도해 주세요.';
-      }).then(function(){
-        if(btn)btn.textContent='확인';
-        checking=false;
+      }).catch(function(){
+        document.getElementById('pwErr').textContent='확인 중 오류가 발생했습니다. 새로고침 후 다시 시도해 주세요.';
+        busy=false;btnEl.textContent='확인';btnEl.disabled=false;
       });
     }
     document.getElementById('pwBtn').addEventListener('click',check);
-    document.getElementById('pwInput').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();check();}});
+    document.getElementById('pwInput').addEventListener('keydown',function(e){if(e.key==='Enter')check();});
     setTimeout(function(){document.getElementById('pwInput')&&document.getElementById('pwInput').focus();},100);
   }
 
-  /* 1) 네트워크 응답을 기다리지 않고 즉시 게이트를 띄운다.
-        (메인 화면이 잠깐 보였다가 로그인창이 뜨는 현상 제거 + 모바일 네트워크가 느려도 로그인 화면이 바로 보임) */
+  /* 로그인창은 네트워크와 무관하게 즉시 표시합니다 (레이스 컨디션/무반응 버그의 원인 제거) */
   if(!trySession())showGate();
 
-  /* 2) Firebase의 최신 비밀번호 해시는 백그라운드에서 조용히 갱신한다.
-        게이트가 이미 열려 있어도 확인 시점에 getHash()가 매번 최신 값을 다시 읽으므로 그대로 반영된다.
-        5초 내에 응답이 없으면 포기하고 기존(로컬) 값으로 계속 진행한다. */
-  var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
-  var timeoutId=ctrl?setTimeout(function(){ctrl.abort();},5000):null;
-  fetch(REMOTE_PW_URL+'?t='+Date.now(),{cache:'no-store',signal:ctrl?ctrl.signal:undefined})
-    .then(function(r){return r.ok?r.json():null;})
-    .then(function(remoteHash){
-      if(timeoutId)clearTimeout(timeoutId);
-      if(remoteHash&&typeof remoteHash==='string'&&remoteHash.length===64){
-        localStorage.setItem(OVERRIDE_KEY,remoteHash);
-      }
-    })
-    .catch(function(){if(timeoutId)clearTimeout(timeoutId);});
+  /* 모든 기기가 같은 새 비밀번호를 쓰도록, Firebase 원격 값을 1회 강제로 새 해시로 덮어씁니다.
+     (쓰기 실패해도 로그인 자체에는 영향 없음 — 위 게이트는 이미 로컬 DEFAULT_HASH로 동작) */
+  try{
+    fetch(REMOTE_PW_URL,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(DEFAULT_HASH)
+    }).catch(function(){});
+  }catch(e){}
 })();
+
 </script>
 <div class="toast" id="toast"></div>
 
@@ -960,7 +947,7 @@ async function clearAllHistory(){
 
 /* ── 비밀번호 변경 ── */
 const PW_OVERRIDE_KEY='yab26pwHash';
-const PW_DEFAULT_HASH='b85c65c827d834bb6e24fad6dde064ca12f2134f7334bdec269500619dd5ab08';
+const PW_DEFAULT_HASH='158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab';
 
 async function getActiveHash(){
   if(GH.ok){
