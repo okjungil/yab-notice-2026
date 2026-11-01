@@ -854,53 +854,73 @@ function loadHistory(){
   try{const v=localStorage.getItem(HIST_KEY);if(v)return JSON.parse(v);}catch{}
   return [];
 }
+const HIST_META_KEY='yab26histMeta';
+
+function loadHistoryMeta(){
+  try{const v=localStorage.getItem(HIST_META_KEY);if(v)return JSON.parse(v);}catch{}
+  return {updatedAt:0};
+}
+function saveHistoryMeta(meta){
+  try{localStorage.setItem(HIST_META_KEY,JSON.stringify(meta));}catch{}
+}
+
 async function persistHistory(arr){
+  const updatedAt=Date.now();
   try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}catch{}
-  /* 원격에 전체 배열을 객체로 변환하여 저장 */
-  await ghWrite('history.json',Object.fromEntries(arr.map(h=>[h.key.replace(/-/g,''),h])));
+  saveHistoryMeta({updatedAt});
+  /* 원격에는 '전체 스냅샷 + 갱신시각'을 함께 저장해야 다른 기기에서 삭제도 정확히 반영됨 */
+  const items=Object.fromEntries(arr.map(h=>[h.key.replace(/-/g,''),h]));
+  await ghWrite('history.json',{updatedAt,items});
+}
+
+/* 원격 스냅샷 포맷 정규화: 신규({updatedAt,items}) / 레거시(평탄한 map) 모두 지원 */
+function normalizeRemoteHistoryPayload(raw){
+  if(!raw||typeof raw!=='object')return null;
+  if(typeof raw.updatedAt==='number'&&raw.items&&typeof raw.items==='object'){
+    return raw;
+  }
+  const looksLegacy=Object.values(raw).some(v=>v&&typeof v==='object'&&v.key&&v.text);
+  if(looksLegacy)return {updatedAt:0,items:raw};
+  return null;
+}
+
+/* 원격 스냅샷을 로컬에 적용 (항상 전체 교체 → 삭제/전체삭제도 정확히 반영) */
+function applyRemoteHistory(payload){
+  const norm=normalizeRemoteHistoryPayload(payload);
+  if(!norm)return;
+  const localMeta=loadHistoryMeta();
+  const remoteUpdatedAt=norm.updatedAt||0;
+  /* 로컬이 더 최신(=이 기기가 방금 쓴 변경을 아직 못 받은 상태)이면 무시해 되살아남 방지 */
+  if(remoteUpdatedAt<localMeta.updatedAt)return;
+  const remote=Object.values(norm.items).filter(h=>h&&h.key&&h.text)
+    .sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(remote));}catch{}
+  saveHistoryMeta({updatedAt:remoteUpdatedAt});
+  updateSyncBadge(true);
+  const histTab=document.getElementById('tab-history');
+  if(histTab&&histTab.style.display!=='none')renderHistory();
 }
 
 async function syncHistoryFromFb(){
   if(!GH.ok)return;
   const raw=await ghRead('history.json');
-  /* 원격 데이터가 없거나 빈 객체면 로컬 보존 (덮어쓰지 않음) */
-  if(!raw||typeof raw!=='object'||Object.keys(raw).length===0){
-    updateSyncBadge(GH.canWrite);
+  const norm=normalizeRemoteHistoryPayload(raw);
+  if(norm){
+    applyRemoteHistory(norm);
     return;
   }
-  const remote=Object.values(raw).filter(h=>h&&h.key&&h.text)
-    .sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
-  if(remote.length===0){updateSyncBadge(GH.canWrite);return;}
-  /* 로컬과 병합: 원격 항목을 기준으로 하되, 로컬에만 있는 항목도 유지 */
+  /* 원격에 유효 스냅샷이 전혀 없는 경우(최초 실행) : 로컬 데이터가 있으면 초기 업로드 */
   const local=loadHistory();
-  const merged=mergeHistory(remote,local);
-  try{localStorage.setItem(HIST_KEY,JSON.stringify(merged));}catch{}
-  updateSyncBadge(true);
-  if(document.getElementById('tab-history').style.display!=='none')renderHistory();
+  if(local.length>0&&GH.canWrite)await persistHistory(local);
+  updateSyncBadge(GH.canWrite);
 }
 
 function startHistorySync(){
   if(!GH.ok)return;
   ghListen('history.json',raw=>{
-    updateSyncBadge(true);
-    if(!raw||typeof raw!=='object'||Object.keys(raw).length===0)return;
-    const remote=Object.values(raw).filter(h=>h&&h.key&&h.text)
-      .sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
-    if(remote.length===0)return;
-    const local=loadHistory();
-    const merged=mergeHistory(remote,local);
-    try{localStorage.setItem(HIST_KEY,JSON.stringify(merged));}catch{}
-    if(document.getElementById('tab-history').style.display!=='none')renderHistory();
+    if(!raw){updateSyncBadge(true);return;}
+    applyRemoteHistory(raw);
   });
-}
-
-/* 원격+로컬 병합: key 기준 중복 제거, 최신순 정렬 */
-function mergeHistory(remote,local){
-  const map=new Map();
-  /* 로컬 먼저 (원격이 덮어씀 → 원격이 최신) */
-  for(const h of local)if(h&&h.key)map.set(h.key,h);
-  for(const h of remote)if(h&&h.key)map.set(h.key,h);
-  return Array.from(map.values()).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,HIST_MAX);
 }
 
 function updateSyncBadge(ok){
@@ -980,17 +1000,19 @@ async function copyHistItem(i){
   showToast(`${arr[i].label} 안내문을 복사했습니다.`);
 }
 
-function deleteHistItem(key){
+async function deleteHistItem(key){
   if(!confirm('이 항목을 삭제하시겠습니까?'))return;
   const arr=loadHistory().filter(h=>h.key!==key);
-  persistHistory(arr);
+  await persistHistory(arr);
   renderHistory();
 }
 
-function clearAllHistory(){
+async function clearAllHistory(){
   if(!confirm('저장된 안내문을 모두 삭제하시겠습니까?'))return;
+  const updatedAt=Date.now();
   try{localStorage.setItem(HIST_KEY,JSON.stringify([]));}catch{}
-  if(GH.canWrite)ghWrite('history.json',{});
+  saveHistoryMeta({updatedAt});
+  if(GH.canWrite)await ghWrite('history.json',{updatedAt,items:{}});
   renderHistory();
   showToast('전체 삭제 완료');
 }
